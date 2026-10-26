@@ -261,7 +261,8 @@ class Mandarine(QObject):
         if self.settings.value("welcomed", False, type=bool):
             return
         self.settings.setValue("welcomed", True)
-        if sys.platform != "darwin" and not integrations.is_installed():
+        # On Windows the installer asks about the right-click entry; the .deb has no such page.
+        if sys.platform.startswith("linux") and not integrations.is_installed():
             integrations.install()
         self.open_settings()
 

@@ -55,7 +55,7 @@ def test_unknown_command_is_rejected():
 def test_version(capsys):
     with pytest.raises(SystemExit):
         run("--version")
-    assert "mandarine 1.0.0" in capsys.readouterr().out
+    assert "mandarine 1.1.0" in capsys.readouterr().out
 
 
 def test_no_args_starts_gui(monkeypatch):

@@ -22,6 +22,8 @@ classifiers = [
   "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
   "Operating System :: MacOS",
   "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows :: Windows 10",
+  "Operating System :: Microsoft :: Windows :: Windows 11",
   "Environment :: X11 Applications :: Qt",
   "Topic :: Multimedia :: Graphics :: Graphics Conversion",
 ]

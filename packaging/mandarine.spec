@@ -1,16 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Build:  pyinstaller --noconfirm --distpath dist --workpath build packaging/mandarine.spec
+# Windows build (also runs on Linux, which is how CI checks it):
+#   pyinstaller --noconfirm --distpath dist --workpath build/pyi packaging/mandarine.spec
+# Produces dist/Mandarine/ with two programs sharing one runtime:
+#   Mandarine.exe       the tray app (no console window)
+#   mandarine-cli.exe   the same program for the terminal (convert, compress…)
 import re
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_dynamic_libs
+
 ROOT = Path(SPECPATH).resolve().parent
 PKG = ROOT / "src" / "mandarine"
 VERSION = re.search(r'__version__\s*=\s*"([^"]+)"', (PKG / "__init__.py").read_text()).group(1)
-BUNDLE_ID = "io.github.anrennnn.Mandarine"
-
-# Optional signing identity, injected by scripts/build-macos.sh (empty = PyInstaller leaves it to us).
-IS_MAC = sys.platform == "darwin"
+IS_WIN = sys.platform == "win32"
+ICON = str(ROOT / "packaging" / "icon.ico")
 
 # Qt modules the app never imports (it uses Core, Gui, Widgets, Network, Svg only).
 EXCLUDES = [
@@ -23,17 +27,15 @@ EXCLUDES = [
     "tkinter", "unittest", "pytest", "PyInstaller",
 ]
 
-hidden = ["PIL.ImageFont", "PIL.ImageDraw", "PIL.ImageFilter", "PIL.ExifTags"]
-# Imported lazily inside watcher.py, so the analysis cannot see them.
-if IS_MAC:
-    hidden += ["AppKit", "Foundation", "objc", "Quartz"]
-else:
+hidden = ["PIL.ImageFont", "PIL.ImageDraw", "PIL.ImageFilter", "PIL.ExifTags", "pillow_heif"]
+# Imported lazily, so the analysis cannot see them.
+if not IS_WIN:
     hidden += ["Xlib", "Xlib.display", "Xlib.ext", "Xlib.ext.record", "Xlib.protocol", "Xlib.support"]
 
 a = Analysis(
     [str(ROOT / "packaging" / "launcher.py")],
     pathex=[str(ROOT / "src")],
-    binaries=[],
+    binaries=collect_dynamic_libs("pillow_heif"),
     datas=[],
     hiddenimports=hidden,
     hookspath=[],
@@ -43,40 +45,47 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    [],
-    exclude_binaries=True,
-    name="Mandarine" if IS_MAC else "mandarine",
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=False,
-    console=not IS_MAC,
-    icon=str(ROOT / "packaging" / "icon.icns") if IS_MAC else None,
-    # Signing is done by scripts/build-macos.sh (inside-out, hardened runtime).
-    codesign_identity=None,
-    entitlements_file=None,
-)
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Mandarine" if IS_MAC else "mandarine")
-
-if IS_MAC:
-    app = BUNDLE(
-        coll,
-        name="Mandarine.app",
-        icon=str(ROOT / "packaging" / "icon.icns"),
-        bundle_identifier=BUNDLE_ID,
-        version=VERSION,
-        info_plist={
-            "CFBundleName": "Mandarine",
-            "CFBundleDisplayName": "Mandarine",
-            "CFBundleShortVersionString": VERSION,
-            "CFBundleVersion": VERSION,
-            "LSUIElement": True,
-            "NSHighResolutionCapable": True,
-            "LSMinimumSystemVersion": "12.0",
-            "NSHumanReadableCopyright": "Copyright Taoufik Jabbari. AGPL-3.0-or-later.",
-            "NSAppleEventsUsageDescription": "Mandarine reads the files selected in Finder when you press its shortcut.",
-        },
+version = None
+if IS_WIN:
+    from PyInstaller.utils.win32.versioninfo import (
+        FixedFileInfo, StringFileInfo, StringStruct, StringTable, VarFileInfo, VarStruct, VSVersionInfo,
     )
+
+    nums = tuple(int(n) for n in (VERSION.split(".") + ["0"] * 4)[:4])
+    version = VSVersionInfo(
+        ffi=FixedFileInfo(filevers=nums, prodvers=nums),
+        kids=[
+            StringFileInfo([StringTable("040904B0", [
+                StringStruct("CompanyName", "anrennnn"),
+                StringStruct("FileDescription", "Mandarine"),
+                StringStruct("FileVersion", VERSION),
+                StringStruct("ProductName", "Mandarine"),
+                StringStruct("ProductVersion", VERSION),
+                StringStruct("LegalCopyright", "AGPL-3.0-or-later. Based on Astral Shift."),
+            ])]),
+            VarFileInfo([VarStruct("Translation", [0x0409, 1200])]),
+        ],
+    )
+
+
+def program(name: str, console: bool):
+    return EXE(
+        pyz, a.scripts, [],
+        exclude_binaries=True,
+        name=name,
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=False,
+        console=console,
+        icon=ICON,
+        version=version,
+    )
+
+
+coll = COLLECT(
+    program("Mandarine", console=False),
+    program("mandarine-cli", console=True),
+    a.binaries, a.datas,
+    strip=False, upx=False, name="Mandarine",
+)

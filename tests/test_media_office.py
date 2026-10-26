@@ -52,6 +52,7 @@ def test_kinds_and_targets(tmp_path):
 
 
 def test_missing_tool_names_the_package(monkeypatch, tmp_path):
+    monkeypatch.setattr(external.sys, "platform", "linux")
     monkeypatch.setattr(external.shutil, "which", lambda name: None)
     assert not external.available("ffmpeg")
     with pytest.raises(ops.MissingTool, match="sudo apt install ffmpeg"):
@@ -60,9 +61,13 @@ def test_missing_tool_names_the_package(monkeypatch, tmp_path):
         external.require("soffice")
 
 
-def test_run_reports_the_error_tail():
-    with pytest.raises(RuntimeError, match="ls failed"):
-        external.run(["ls", "/definitely/not/here"])
+def test_run_reports_the_error_tail(monkeypatch):
+    import sys
+    monkeypatch.setattr(external, "require", lambda program: sys.executable)
+    with pytest.raises(RuntimeError, match="python failed: .*boom"):
+        external.run(["python", "-c", "import sys; sys.exit('boom')"])
+    with pytest.raises(RuntimeError, match="exit code 3"):
+        external.run(["python", "-c", "import sys; sys.exit(3)"])
 
 
 @needs_ffmpeg

@@ -3,7 +3,7 @@
 <h1 align="center">Mandarine</h1>
 
 <p align="center"><b>Mantén Shift, arrastra, suelta. Listo.</b><br>
-Una rueda que convierte y edita archivos mientras los arrastras, para Linux (Debian, Ubuntu, Mint y derivados).</p>
+Una rueda que convierte y edita archivos mientras los arrastras, para Linux y Windows.</p>
 
 <p align="center"><img src="docs/wheels.png" alt="Las ruedas de Mandarine: formatos de un PDF, herramientas de un PDF, herramientas de vídeo y formatos de un documento" width="100%"></p>
 
@@ -13,10 +13,22 @@ Todo ocurre en tu ordenador: ningún archivo se sube a internet. Es libre y grat
 
 ## Instalar
 
-Descarga `mandarine_<versión>_amd64.deb` desde [Releases](https://github.com/anrennnn/Mandarine-Linux-Windows/releases/latest) e instálalo:
+Todo se descarga desde [Releases](https://github.com/anrennnn/Mandarine-Linux-Windows/releases/latest).
+
+### Windows 10 y 11
+
+Ejecuta `Mandarine-Setup-<versión>.exe`. No pide permisos de administrador, y el asistente ofrece:
+
+- añadir Mandarine al **clic derecho** del Explorador (en Windows 11, dentro de «Mostrar más opciones»);
+- abrirla al iniciar sesión, que hace falta para **Shift + arrastrar**;
+- instalar con `winget` **ffmpeg** (vídeo y audio), **LibreOffice** (Word, Excel, PowerPoint) y **Tesseract** (OCR).
+
+El instalador no está firmado, así que SmartScreen puede avisar: «Más información» → «Ejecutar de todas formas». También hay una versión portable en `.zip`, y `mandarine-cli.exe` para usarla desde la terminal.
+
+### Linux
 
 ```sh
-sudo apt install ./mandarine_1.0.0_amd64.deb
+sudo apt install ./mandarine_1.1.0_amd64.deb
 ```
 
 `apt` instala también lo recomendado: **ffmpeg** (vídeo y audio), **LibreOffice Writer** (Word y documentos) y **Tesseract** (OCR en español e inglés). Si alguno falta, Mandarine te dice qué paquete instalar cuando lo necesitas.
@@ -37,6 +49,10 @@ Para desinstalar: `sudo apt remove mandarine`.
 | **Abrir con → Mandarine** | Desde cualquier gestor de archivos |
 | **Ctrl + Alt + Espacio** | Abre la rueda (en GNOME Wayland, se configura con un botón en Ajustes) |
 | `mandarine archivo.pdf` | Abre la rueda para ese archivo |
+
+En **Windows**, Shift + arrastrar funciona con archivos que arrastras desde el Explorador o el escritorio, el atajo es el mismo (Ctrl + Alt + Espacio, y abre la rueda con lo que tengas seleccionado en el Explorador), y la burbuja también está disponible.
+
+Con Shift, los gestores de archivos proponen **mover** el archivo; Mandarine siempre lo acepta como **copia**, así que el original nunca se toca.
 
 ### Formatos
 
@@ -70,6 +86,8 @@ Un PDF escaneado sin texto pasa por OCR automáticamente al convertirlo a TXT.
 | KDE Plasma (Wayland) | — | ✅ | Dolphin ✅ | en Preferencias del sistema → Atajos: `mandarine wheel` |
 | Cinnamon / MATE / XFCE / LXQt | ✅ | ✅ | Nemo / Caja / Thunar / PCManFM ✅ | ✅ |
 
+| Windows 10 / 11 | ✅ (desde el Explorador) | ✅ | Explorador ✅ | ✅ |
+
 Wayland no deja que ninguna app vea un arrastre en otra ventana: por eso existe la burbuja, que en Wayland viene activada por defecto. Para que la rueda y la burbuja puedan colocarse donde toca, Mandarine se ejecuta a través de XWayland.
 
 ## Línea de comandos
@@ -99,11 +117,19 @@ xvfb-run -a .venv/bin/python -m pytest   # tests, con cobertura del 100 % obliga
 ./scripts/build-deb.sh                   # genera dist/mandarine_<versión>_amd64.deb
 ```
 
+En Windows (PowerShell, con Python 3.12 e [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
+
+```powershell
+py -3.12 -m venv .venv; .venv\Scripts\pip install -e ".[dev]"
+.venv\Scripts\pyinstaller --noconfirm packaging\mandarine.spec      # dist\Mandarine\
+iscc /DAppVersion=1.1.0 packaging\windows\mandarine.iss             # dist\Mandarine-Setup-1.1.0.exe
+```
+
 - `src/mandarine/ops/`: las operaciones sobre archivos, sin interfaz (PyMuPDF, Pillow, ffmpeg, LibreOffice, Tesseract).
-- `src/mandarine/gui/`: la rueda, la burbuja, la bandeja, los diálogos y la integración con cada escritorio.
+- `src/mandarine/gui/`: la rueda, la burbuja, la bandeja, los diálogos y la integración con cada escritorio (`win32.py` para Windows).
 - `src/mandarine/i18n.py`: textos en español (se usan si el sistema está en español; `MANDARINE_LANG=en` fuerza inglés).
 
-Cada versión etiquetada (`v1.2.3`) compila el `.deb` en GitHub Actions y lo publica en Releases. También puedes publicarla a mano: pestaña **Actions → CI → Run workflow**.
+Cada versión etiquetada (`v1.2.3`) compila el `.deb` y el instalador de Windows en GitHub Actions, los prueba y los publica en Releases. También puedes publicarla a mano: pestaña **Actions → CI → Run workflow**.
 
 ## Créditos y licencia
 

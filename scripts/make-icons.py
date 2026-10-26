@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render packaging/icon.svg into icon.png and the Linux hicolor sizes (and icon.icns on macOS)."""
+"""Render packaging/icon.svg into icon.png, icon.ico (Windows) and the Linux hicolor sizes."""
 import sys
 from pathlib import Path
 
@@ -31,4 +31,11 @@ for s in (16, 24, 32, 48, 64, 128, 256, 512):
 scalable = PK / "hicolor" / "scalable" / "apps"
 scalable.mkdir(parents=True, exist_ok=True)
 (scalable / "mandarine.svg").write_bytes((PK / "icon.svg").read_bytes())
+# Windows: one .ico with every size Explorer and the taskbar ask for.
+from PIL import Image  # noqa: E402
+
+tmp = PK / "icon-256.png"
+render(256).save(str(tmp))
+Image.open(tmp).save(PK / "icon.ico", sizes=[(s, s) for s in (16, 20, 24, 32, 40, 48, 64, 128, 256)])
+tmp.unlink()
 print("ok")
