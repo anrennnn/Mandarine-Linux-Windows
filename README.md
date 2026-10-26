@@ -103,7 +103,7 @@ xvfb-run -a .venv/bin/python -m pytest   # tests, con cobertura del 100 % obliga
 - `src/mandarine/gui/`: la rueda, la burbuja, la bandeja, los diálogos y la integración con cada escritorio.
 - `src/mandarine/i18n.py`: textos en español (se usan si el sistema está en español; `MANDARINE_LANG=en` fuerza inglés).
 
-Cada versión etiquetada (`v1.2.3`) compila el `.deb` en GitHub Actions y lo publica en Releases.
+Cada versión etiquetada (`v1.2.3`) compila el `.deb` en GitHub Actions y lo publica en Releases. También puedes publicarla a mano: pestaña **Actions → CI → Run workflow**.
 
 ## Créditos y licencia
 
