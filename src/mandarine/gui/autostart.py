@@ -1,8 +1,10 @@
-"""Open at login: a LaunchAgent on macOS, an XDG autostart entry on Linux."""
+"""Open at login: a LaunchAgent on macOS, an XDG autostart entry on Linux,
+the ``Run`` registry key on Windows."""
 from __future__ import annotations
 
 import os
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 
@@ -19,6 +21,8 @@ def _launch_command() -> list[str]:
         for parent in exe.parents:
             if parent.suffix == ".app":
                 return ["/usr/bin/open", "-a", str(parent)]
+        if exe.stem.lower() == "mandarine-cli":  # Windows console twin: launch the windowed app
+            exe = exe.with_name("Mandarine.exe")
         appimage = os.environ.get("APPIMAGE")
         return [appimage] if appimage else [str(exe)]
     return [sys.executable, "-m", "mandarine"]
@@ -31,7 +35,24 @@ def entry_path() -> Path:
     return config / "autostart" / "mandarine.desktop"
 
 
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+
+def _winreg():  # pragma: no cover - tests swap in a fake
+    import winreg
+
+    return winreg
+
+
 def is_enabled() -> bool:
+    if sys.platform == "win32":
+        reg = _winreg()
+        try:
+            with reg.OpenKey(reg.HKEY_CURRENT_USER, RUN_KEY) as key:
+                reg.QueryValueEx(key, "Mandarine")
+            return True
+        except OSError:
+            return False
     return entry_path().exists()
 
 
@@ -60,6 +81,17 @@ def render() -> str:
 
 
 def set_enabled(on: bool) -> None:
+    if sys.platform == "win32":
+        reg = _winreg()
+        with reg.CreateKey(reg.HKEY_CURRENT_USER, RUN_KEY) as key:
+            if on:
+                reg.SetValueEx(key, "Mandarine", 0, reg.REG_SZ, subprocess.list2cmdline(_launch_command()))
+            else:
+                try:
+                    reg.DeleteValue(key, "Mandarine")
+                except OSError:
+                    pass
+        return
     path = entry_path()
     if on:
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import locale
 import os
 
 ES = {
@@ -58,6 +59,10 @@ ES = {
         "Abre la rueda para los archivos que sueltes en ella.",
     "Mandarine {} · free and open source (AGPL-3.0) · based on Astral Shift":
         "Mandarine {} · libre y de código abierto (AGPL-3.0) · basado en Astral Shift",
+    "Helper programs": "Programas auxiliares", "Video and audio (ffmpeg)": "Vídeo y audio (ffmpeg)",
+    "Documents (LibreOffice)": "Documentos (LibreOffice)",
+    "Text from images (Tesseract OCR)": "Texto de imágenes (OCR con Tesseract)",
+    "Installed": "Instalado", "Missing · {}": "Falta · {}", "Install": "Instalar",
     # dialogs
     "Cancel": "Cancelar", "Reset": "Restablecer", "Apply": "Aplicar", "Undo": "Deshacer", "Free": "Libre",
     "Crop": "Recortar", "Crop Image": "Recortar imagen", "Crop PDF": "Recortar PDF", "Aspect ratio": "Proporción",
@@ -88,7 +93,9 @@ def lang() -> str:
         value = os.environ.get(var)
         if value:
             return value[:2].lower()
-    return "en"
+    # Windows sets none of those: ask the C library ("Spanish_Spain" or "es_ES").
+    name = (locale.getlocale()[0] or "").lower()
+    return "es" if name.startswith(("es", "spanish")) else "en"
 
 
 def tr(text: str, *args) -> str:

@@ -50,10 +50,10 @@ class UnsupportedFile(ValueError):
 class MissingTool(RuntimeError):
     """An optional helper program (ffmpeg, LibreOffice, Tesseract) is not installed."""
 
-    def __init__(self, program: str, package: str) -> None:
-        super().__init__(f"{program} is not installed. Install it with: sudo apt install {package}")
+    def __init__(self, program: str, hint: str) -> None:
+        super().__init__(f"{program} is not installed. Install it with: {hint}")
         self.program = program
-        self.package = package
+        self.hint = hint
 
 
 def kind(path: Path) -> str:

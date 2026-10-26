@@ -3,6 +3,8 @@
 * macOS: Carbon ``RegisterEventHotKey`` through ctypes (the same API the
   Spotlight-style launchers use; it needs no Accessibility access).
 * X11: ``XGrabKey`` on the root window.
+* Windows: ``RegisterHotKey``; the ``WM_HOTKEY`` message is picked out of
+  Qt's event loop with a native event filter.
 * Wayland: not possible for an app; bind ``mandarine wheel`` in the
   desktop's own keyboard settings instead.
 """
@@ -11,7 +13,7 @@ from __future__ import annotations
 import ctypes
 import sys
 
-from PySide6.QtCore import QObject, QSocketNotifier, Qt, Signal
+from PySide6.QtCore import QAbstractNativeEventFilter, QCoreApplication, QObject, QSocketNotifier, Qt, Signal
 from PySide6.QtGui import QKeySequence
 
 DEFAULT = "Meta+Alt+Space" if sys.platform == "darwin" else "Ctrl+Alt+Space"  # mac: Control+Option+Space
@@ -168,8 +170,84 @@ class X11Hotkey:
                 self._callback()
 
 
+def win_vk(key: Qt.Key) -> int | None:
+    """Qt key -> Windows virtual-key code."""
+    k = int(key)
+    if 0x30 <= k <= 0x39 or 0x41 <= k <= 0x5A:  # digits and letters share their ASCII codes
+        return k
+    if int(Qt.Key.Key_F1) <= k <= int(Qt.Key.Key_F12):
+        return 0x70 + k - int(Qt.Key.Key_F1)
+    return {Qt.Key.Key_Space: 0x20, Qt.Key.Key_Return: 0x0D, Qt.Key.Key_Tab: 0x09,
+            Qt.Key.Key_Escape: 0x1B, Qt.Key.Key_Insert: 0x2D}.get(key)
+
+
+def win_modifiers(mods: Qt.KeyboardModifier) -> int:
+    from . import win32
+
+    out = win32.MOD_NOREPEAT
+    if mods & Qt.KeyboardModifier.ControlModifier:
+        out |= win32.MOD_CONTROL
+    if mods & Qt.KeyboardModifier.AltModifier:
+        out |= win32.MOD_ALT
+    if mods & Qt.KeyboardModifier.ShiftModifier:
+        out |= win32.MOD_SHIFT
+    if mods & Qt.KeyboardModifier.MetaModifier:
+        out |= win32.MOD_WIN
+    return out
+
+
+class _HotkeyFilter(QAbstractNativeEventFilter):
+    def __init__(self, hotkey_id: int, callback) -> None:
+        super().__init__()
+        self.hotkey_id = hotkey_id
+        self.callback = callback
+
+    def nativeEventFilter(self, event_type, message):
+        from ctypes import wintypes
+
+        from . import win32
+
+        if bytes(event_type) in (b"windows_generic_MSG", b"windows_dispatcher_MSG") and message:
+            msg = wintypes.MSG.from_address(int(message))
+            if msg.message == win32.WM_HOTKEY and msg.wParam == self.hotkey_id:
+                self.callback()
+                return True, 0
+        return False, 0
+
+
+class WinHotkey:
+    ID = 0x4D41  # "MA"
+
+    def __init__(self, callback, user32=None) -> None:
+        from . import win32
+
+        self._u = user32 if user32 is not None else win32.user32()
+        self._registered = False
+        self.filter = _HotkeyFilter(self.ID, callback)
+        QCoreApplication.instance().installNativeEventFilter(self.filter)
+
+    def register(self, key: Qt.Key, mods: Qt.KeyboardModifier) -> bool:
+        self.unregister()
+        vk = win_vk(key)
+        if vk is None:
+            return False
+        # No window: WM_HOTKEY goes to this thread's queue, which Qt's loop drains.
+        self._registered = bool(self._u.RegisterHotKey(None, self.ID, win_modifiers(mods), vk))
+        return self._registered
+
+    def unregister(self) -> None:
+        if self._registered:
+            self._u.UnregisterHotKey(None, self.ID)
+            self._registered = False
+
+
 def make_backend(callback):
     import os
+    if sys.platform == "win32":
+        try:
+            return WinHotkey(callback)
+        except OSError:
+            return None
     if sys.platform == "darwin":
         try:
             return MacHotkey(callback)

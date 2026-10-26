@@ -37,12 +37,16 @@ TITLES = {
     "edit": "Saving edits…", "merge": "Merging…",
 }
 MEDIA = ("video", "audio")
+GATHER_MS = 350
 
 
 def reveal(path: Path) -> None:
     """Open the folder with ``path`` selected (FileManager1 D-Bus), else just the folder."""
     if sys.platform == "darwin":
         subprocess.Popen(["open", "-R", str(path)])
+        return
+    if sys.platform == "win32":
+        subprocess.Popen(["explorer", f"/select,{path}"])
         return
     gdbus = shutil.which("gdbus")
     if gdbus:
@@ -186,6 +190,13 @@ class Mandarine(QObject):
         self.bubble.entered.connect(self._on_bubble_drag)
         self.bubble.clicked.connect(lambda pos: self.wheel.popup(pos, sticky=True))
         self._open_dialogs: list = []
+        # "Open with" / right-click on several files can start one process per
+        # file (always on Windows): gather what arrives close together.
+        self._incoming: list[Path] = []
+        self._gather = QTimer(self)
+        self._gather.setSingleShot(True)
+        self._gather.setInterval(GATHER_MS)
+        self._gather.timeout.connect(self._show_incoming)
         self._tasks: list[Task] = []
         self.settings_dialog: SettingsDialog | None = None
         self._load_settings()
@@ -250,7 +261,7 @@ class Mandarine(QObject):
         if self.settings.value("welcomed", False, type=bool):
             return
         self.settings.setValue("welcomed", True)
-        if sys.platform.startswith("linux") and not integrations.is_installed():
+        if sys.platform != "darwin" and not integrations.is_installed():
             integrations.install()
         self.open_settings()
 
@@ -303,9 +314,18 @@ class Mandarine(QObject):
         parts = msg.split("\t")
         if parts[0] == "wheel":
             files = [Path(p) for p in parts[1:] if p and ops.is_supported(Path(p))]
-            self.show_wheel(sticky=True, files=files or None)
+            if not files:
+                self.show_wheel(sticky=True)
+                return
+            self._incoming += [f for f in files if f not in self._incoming]
+            self._gather.start()  # restarts while more files keep arriving
         elif parts[0] == "settings":
             self.open_settings()
+
+    def _show_incoming(self) -> None:
+        files, self._incoming = self._incoming, []
+        if files:
+            self.show_wheel(sticky=True, files=files)
 
     # --- actions ------------------------------------------------------------------
 

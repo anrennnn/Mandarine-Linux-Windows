@@ -89,6 +89,10 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("split", help="one PDF per page")
     s.add_argument("files", nargs="+", type=Path)
 
+    s = sub.add_parser("integrate", help="add (or --remove) the file manager's right-click entry and open-at-login")
+    s.add_argument("--remove", action="store_true", help="remove both instead")
+    s.add_argument("--no-login", action="store_true", help="leave open-at-login alone")
+
     s = sub.add_parser("wheel", help="show the wheel at the cursor, for these files if given (starts the app if needed)")
     s.add_argument("files", nargs="*", type=Path)
     sub.add_parser("gui", help="start the app (default)")
@@ -154,7 +158,7 @@ def run(args: argparse.Namespace) -> int:
     return status
 
 
-COMMANDS = {"convert", "compress", "mute", "resize", "normalize", "targets", "crop", "rotate", "background",
+COMMANDS = {"integrate", "convert", "compress", "mute", "resize", "normalize", "targets", "crop", "rotate", "background",
             "redact", "metadata", "merge", "split", "wheel", "gui"}
 
 
@@ -166,6 +170,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd in (None, "gui"):
         from .gui.app import run_app
         return run_app()
+    if args.cmd == "integrate":
+        from .gui import autostart, integrations
+        integrations.set_installed(not args.remove)
+        if not args.no_login or args.remove:
+            autostart.set_enabled(not args.remove)
+        return 0
     if args.cmd == "wheel":
         from .gui.app import run_app
         return run_app([f.resolve() for f in args.files])

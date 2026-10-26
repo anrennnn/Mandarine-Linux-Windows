@@ -7,8 +7,11 @@ state the OS already exposes to every app.
   count of the drag pasteboard, which bumps when any app starts a drag.
 * X11: ``XQueryPointer`` (buttons + modifiers) and the owner of the
   ``XdndSelection``, which the drag source takes when a drag starts.
+* Windows: ``GetAsyncKeyState`` (button, Shift, Ctrl). Windows has no
+  public "a drag is in progress" flag, so a drag counts as a file drag when
+  the button went down on File Explorer or the desktop.
 * Wayland: nothing global is readable, so there is no backend; the wheel is
-  opened from the tray or with ``mandarine wheel``.
+  opened from the bubble, the tray or with ``mandarine wheel``.
 """
 from __future__ import annotations
 
@@ -80,9 +83,39 @@ class X11Backend:
         return self._seen_owner != 0
 
 
+class WinBackend:
+    # Explorer does not change any global state when a drag starts, so the
+    # pointer travel alone (MIN_DISTANCE) marks the drag.
+    loose = True
+
+    def __init__(self, user32=None) -> None:
+        from . import win32
+
+        self._w = win32
+        self._u = user32 if user32 is not None else win32.user32()
+        self._down = False
+        self._from_explorer = False
+
+    def state(self) -> State:
+        w, u = self._w, self._u
+        down = w.pressed(u, w.primary_button(u))
+        if down and not self._down:
+            self._from_explorer = w.class_at_cursor(u) in w.EXPLORER_CLASSES
+        self._down = down
+        return State(down, w.pressed(u, w.VK_SHIFT), 0, w.pressed(u, w.VK_CONTROL))
+
+    def drag_has_files(self) -> bool:
+        return self._from_explorer
+
+
 def make_backend():
     if sys.platform == "darwin":
         return MacBackend()
+    if sys.platform == "win32":
+        try:
+            return WinBackend()
+        except OSError:
+            return None
     if sys.platform.startswith("linux") and os.environ.get("DISPLAY") and os.environ.get("XDG_SESSION_TYPE") != "wayland":
         try:
             return X11Backend()

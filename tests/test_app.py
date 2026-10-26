@@ -179,6 +179,10 @@ def test_messages_and_hotkey(core, monkeypatch, jpg, tmp_path):
     monkeypatch.setattr(core, "show_wheel", lambda sticky=False, files=None: shown.append((sticky, files)))
     core.on_message("wheel")
     core.on_message(f"wheel\t{jpg}\t{tmp_path / 'notes.xyz'}")
+    assert core._gather.isActive()
+    core._gather.stop()
+    core._show_incoming()
+    core._show_incoming()  # nothing waiting: no wheel
     core.on_message("other")
     opened = []
     monkeypatch.setattr(core, "open_settings", lambda: opened.append(1))

@@ -80,6 +80,22 @@ GAP_DEG = 2.4
 SWITCH_MS = 450  # resting on a mode-switch centre this long flips the ring
 
 
+def accept_copy(event) -> bool:
+    """Accept a drag or drop as a *copy*, never a move.
+
+    Holding Shift makes Explorer, Nautilus and Dolphin propose a move, and a
+    source that sees its move accepted may delete the original. Mandarine only
+    reads the file, so it answers "copy" (or "link"), and refuses a move-only drag.
+    """
+    for action in (Qt.DropAction.CopyAction, Qt.DropAction.LinkAction):
+        if event.possibleActions() & action:
+            event.setDropAction(action)
+            event.accept()
+            return True
+    event.ignore()
+    return False
+
+
 def local_files(event) -> list[Path]:
     md = event.mimeData()
     if not md.hasUrls():
@@ -292,7 +308,7 @@ class Wheel(QWidget):
         if files:
             self._drag_inside = True
             self.set_files(files)
-            e.acceptProposedAction()
+            accept_copy(e)
         else:
             e.ignore()
 
@@ -313,7 +329,7 @@ class Wheel(QWidget):
         action = self._hit(e.position())
         self._set_hover(action)
         if action:
-            e.acceptProposedAction()
+            accept_copy(e)
         else:
             e.ignore()
 
@@ -335,10 +351,10 @@ class Wheel(QWidget):
             # Dropped on the switch before it flipped: keep the wheel for a click.
             self._switch_now()
             self._preset = self._sticky = True
-            e.acceptProposedAction()
+            accept_copy(e)
             return
         if action and files:
-            e.acceptProposedAction()
+            accept_copy(e)
             self.dropped.emit(action.key, files)
         self.dismiss()
 

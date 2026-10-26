@@ -55,8 +55,11 @@ def ffmpeg(src: Path, dest: Path, args: list[str], progress: Progress = None) ->
     """Run ffmpeg ``src -> dest`` reporting progress in per-mille of the duration."""
     exe = external.require("ffmpeg")
     total = duration(src) if progress else 0.0
-    cmd = [exe, "-hide_banner", "-nostdin", "-y", "-i", str(src), *args, "-progress", "pipe:1", "-nostats", str(dest)]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    # -loglevel error keeps stderr small: it is read only after stdout, so a chatty
+    # ffmpeg could otherwise fill the pipe and stall both processes.
+    cmd = [exe, "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", str(src), *args,
+           "-progress", "pipe:1", "-nostats", str(dest)]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **external.quiet())
     assert proc.stdout is not None
     for line in proc.stdout:
         m = re.match(r"out_time_us=(\d+)", line)

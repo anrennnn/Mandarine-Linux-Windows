@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QWidget
 from .. import APP_NAME
 from . import icons
 from .glass import shape_to
-from .wheel import local_files
+from .wheel import accept_copy, local_files
 
 SIZE = 64
 
@@ -68,7 +68,7 @@ class Bubble(QWidget):
         if not files:
             e.ignore()
             return
-        e.acceptProposedAction()
+        accept_copy(e)
         self.hot = True
         self.update()
         self.entered.emit(self.centre(), files)
@@ -83,7 +83,7 @@ class Bubble(QWidget):
         self.update()
         files = local_files(e)
         if files:
-            e.acceptProposedAction()
+            accept_copy(e)
             self.entered.emit(self.centre(), files)
 
     # --- moving and clicking ------------------------------------------------------

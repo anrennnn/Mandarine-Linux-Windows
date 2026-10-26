@@ -4,6 +4,9 @@
 * Linux: a Nautilus script, a Dolphin service menu, a Nemo action, a Caja
   script, a Thunar custom action and a PCManFM (file-manager-actions) entry,
   so it shows up on GNOME, KDE, Cinnamon, MATE, XFCE and LXQt alike.
+* Windows: a "Mandarine" verb for each supported extension under
+  ``HKCU/Software/Classes/SystemFileAssociations`` (per user, no admin).
+  On Windows 11 it sits under "Show more options".
 
 Each entry runs ``mandarine wheel <files>``, which opens the wheel with
 the selected files in the running app (or starts it).
@@ -79,7 +82,57 @@ def entry_paths() -> list[Path]:
 
 
 def is_installed() -> bool:
+    if sys.platform == "win32":
+        return windows_installed()
     return any(p.exists() for p in entry_paths()) or (sys.platform != "darwin" and _thunar_has_action())
+
+
+# --- Windows ---------------------------------------------------------------------------
+
+WIN_KEY = r"Software\Classes\SystemFileAssociations\.{ext}\shell\Mandarine"
+
+
+def _winreg():  # pragma: no cover - tests swap in a fake
+    import winreg
+
+    return winreg
+
+
+def windows_installed() -> bool:
+    reg = _winreg()
+    try:
+        reg.OpenKey(reg.HKEY_CURRENT_USER, WIN_KEY.format(ext="pdf")).Close()
+        return True
+    except OSError:
+        return False
+
+
+def windows_install(command: list[str]) -> list[str]:
+    reg = _winreg()
+    line = subprocess.list2cmdline(command) + ' "%1"'
+    keys = []
+    for ext in EXTENSIONS:
+        name = WIN_KEY.format(ext=ext)
+        with reg.CreateKey(reg.HKEY_CURRENT_USER, name) as key:
+            reg.SetValueEx(key, "", 0, reg.REG_SZ, MENU_TITLE)
+            reg.SetValueEx(key, "Icon", 0, reg.REG_SZ, command[0])
+            # One launch per selected file; the running app gathers them into one wheel.
+            reg.SetValueEx(key, "MultiSelectModel", 0, reg.REG_SZ, "Player")
+        with reg.CreateKey(reg.HKEY_CURRENT_USER, name + "\\command") as key:
+            reg.SetValueEx(key, "", 0, reg.REG_SZ, line)
+        keys.append(name)
+    return keys
+
+
+def windows_uninstall() -> None:
+    reg = _winreg()
+    for ext in EXTENSIONS:
+        name = WIN_KEY.format(ext=ext)
+        for sub in (name + "\\command", name):
+            try:
+                reg.DeleteKey(reg.HKEY_CURRENT_USER, sub)
+            except OSError:
+                pass
 
 
 # --- macOS Quick Action ------------------------------------------------------------
@@ -236,7 +289,9 @@ def thunar_uninstall() -> None:
 
 # --- install / remove -----------------------------------------------------------------------
 
-def install() -> list[Path]:
+def install() -> list:
+    if sys.platform == "win32":
+        return windows_install(wheel_command())
     command = shlex.join(wheel_command())
     paths = entry_paths()
     if sys.platform == "darwin":
@@ -257,6 +312,9 @@ def install() -> list[Path]:
 
 def uninstall() -> None:
     import shutil
+    if sys.platform == "win32":
+        windows_uninstall()
+        return
     for p in entry_paths():
         if p.is_dir():
             shutil.rmtree(p)

@@ -156,4 +156,12 @@ def test_make_backend(monkeypatch):
     monkeypatch.setattr(W, "X11Backend", broken)
     assert W.make_backend() is None
     monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(W, "WinBackend", lambda: "win")
+    assert W.make_backend() == "win"
+
+    def no_user32():
+        raise OSError("no user32")
+    monkeypatch.setattr(W, "WinBackend", no_user32)
+    assert W.make_backend() is None
+    monkeypatch.setattr(sys, "platform", "sunos")
     assert W.make_backend() is None

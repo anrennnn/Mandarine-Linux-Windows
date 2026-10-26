@@ -418,3 +418,27 @@ def test_wheel_blur_requested_once(qtbot, monkeypatch):
     w.popup(QPoint(400, 400))
     assert len(calls) == 1 and w.blurred
     w.grab()
+
+
+def test_shift_drag_is_accepted_as_copy_never_move(qtbot, jpg):
+    """Shift makes file managers propose a move; accepting it could delete the original."""
+    w = Wh.Wheel()
+    qtbot.addWidget(w)
+    w.popup(QPoint(400, 400))
+    md = mime(jpg)
+    both = Qt.DropAction.CopyAction | Qt.DropAction.MoveAction
+    e = QDragEnterEvent(C.toPoint(), both, md, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier)
+    e.setDropAction(Qt.DropAction.MoveAction)
+    w.dragEnterEvent(e)
+    assert e.isAccepted() and e.dropAction() == Qt.DropAction.CopyAction
+    d = QDropEvent(at_wedge(0, len(w.ring)), both, md, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier)
+    d.setDropAction(Qt.DropAction.MoveAction)
+    w.dropEvent(d)
+    assert d.dropAction() == Qt.DropAction.CopyAction
+    # Link is the fallback; a move-only drag is refused.
+    link = QDragMoveEvent(C.toPoint(), Qt.DropAction.LinkAction | Qt.DropAction.MoveAction, md,
+                          Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier)
+    assert Wh.accept_copy(link) and link.dropAction() == Qt.DropAction.LinkAction
+    only_move = QDragMoveEvent(C.toPoint(), Qt.DropAction.MoveAction, md, Qt.MouseButton.LeftButton,
+                               Qt.KeyboardModifier.ShiftModifier)
+    assert not Wh.accept_copy(only_move) and not only_move.isAccepted()

@@ -7,12 +7,29 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QGridLayout, QHBoxLayout, QKeySequenceEdit, QLabel, QPushButton, QWidget,
 )
 
-from .. import __version__
+import subprocess
+import sys
+
+from .. import __version__, ops
 from ..i18n import tr
 from . import desktop, hotkey
 from .glass import GlassDialog
 
 GITHUB = "https://github.com/anrennnn/Mandarine-Linux-Windows"
+
+
+HELPERS = [
+    ("ffmpeg", "Video and audio (ffmpeg)"),
+    ("soffice", "Documents (LibreOffice)"),
+    ("tesseract", "Text from images (Tesseract OCR)"),
+]
+
+
+def install_helper(program: str) -> None:
+    """Windows: run winget in a console window the user can watch."""
+    package = ops.external.WINGET[program]
+    subprocess.Popen(["cmd", "/c", "start", "winget", "install", "-e", "--id", package,
+                      "--accept-source-agreements", "--accept-package-agreements"])
 
 
 def open_url(url: str) -> None:
@@ -107,6 +124,23 @@ class SettingsDialog(GlassDialog):
             grid.addWidget(combo, row, 1, 1, 2)
             self.combos[key] = combo
             row += 1
+        grid.addWidget(_section(tr("Helper programs")), row, 0, 1, 3)
+        row += 1
+        self.helpers: dict[str, QLabel] = {}
+        for program, label in HELPERS:
+            grid.addWidget(QLabel(tr(label)), row, 0)
+            status = QLabel()
+            status.setObjectName("Muted")
+            status.setWordWrap(True)
+            status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            grid.addWidget(status, row, 1)
+            self.helpers[program] = status
+            if sys.platform == "win32" and not ops.external.available(program):
+                button = QPushButton(tr("Install"))
+                button.clicked.connect(lambda _c=False, p=program: install_helper(p))
+                grid.addWidget(button, row, 2)
+            row += 1
+        self.refresh_helpers()
         self.layout_.addLayout(grid)
 
         about = QLabel(tr("Mandarine {} · free and open source (AGPL-3.0) · based on Astral Shift", __version__))
@@ -142,6 +176,11 @@ class SettingsDialog(GlassDialog):
             self.set_shortcut_status(tr("Shortcut added to GNOME: {}", text))
         except Exception as e:  # gsettings refused: say why
             self.set_shortcut_status(str(e))
+
+    def refresh_helpers(self) -> None:
+        for program, status in self.helpers.items():
+            found = ops.external.find(program)
+            status.setText(tr("Installed") if found else tr("Missing · {}", ops.external.install_hint(program)))
 
     def set_shortcut_status(self, text: str) -> None:
         self.shortcut_status.setText(text)
