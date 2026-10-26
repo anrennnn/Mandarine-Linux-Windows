@@ -23,6 +23,7 @@ PACKAGES = {
 
 # Conversions can be slow (a long video), but never hang forever.
 TIMEOUT = 60 * 60
+OFFICE_TIMEOUT = 5 * 60  # a document converts in seconds; a stuck LibreOffice should not hang the app
 
 
 def find(program: str) -> str | None:
@@ -68,7 +69,7 @@ def soffice_convert(src: Path, filter_: str, infilter: str | None = None) -> Pat
         args.append(f"--infilter={infilter}")
     args += ["--convert-to", filter_, "--outdir", str(out_dir), str(src)]
     try:
-        run(args, env={**os.environ, "SAL_USE_VCLPLUGIN": "svp"})
+        run(args, timeout=OFFICE_TIMEOUT, env={**os.environ, "SAL_USE_VCLPLUGIN": "svp"})
     finally:
         shutil.rmtree(profile, ignore_errors=True)
     produced = sorted(out_dir.iterdir())
