@@ -1,0 +1,11 @@
+#!/bin/sh
+# Mandarine launcher, installed as /usr/bin/mandarine by the .deb.
+# The app ships its own Python in /opt/mandarine, so it runs the same on every
+# Debian/Ubuntu release whatever the system Python is.
+export MANDARINE_LAUNCHER=/usr/bin/mandarine
+# On Wayland, go through XWayland when it is there: only X11 lets the wheel
+# and the bubble choose where they appear on screen.
+if [ "$XDG_SESSION_TYPE" = "wayland" ] && [ -n "$DISPLAY" ] && [ -z "$QT_QPA_PLATFORM" ]; then
+    export QT_QPA_PLATFORM=xcb
+fi
+exec /opt/mandarine/python/bin/python3 -I -m mandarine "$@"

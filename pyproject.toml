@@ -5,15 +5,16 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mandarine"
 dynamic = ["version"]
-description = "Hold Shift while dragging a PDF or image: a radial wheel lets you convert, compress, crop, redact, annotate and more."
+description = "Hold Shift while dragging a file: a radial wheel converts, compresses, crops, redacts, annotates and more."
 readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
-authors = [{ name = "Taoufik Jabbari" }]
+authors = [{ name = "anrennnn" }, { name = "Taoufik Jabbari (Astral Shift)" }]
 requires-python = ">=3.10"
 dependencies = [
   "PySide6-Essentials>=6.7",
-  "pymupdf>=1.24.2",
-  "pillow>=10.1",
+  "pymupdf>=1.24.2,<2",
+  "pillow>=11.3",
+  "pillow-heif>=0.18",
   "pyobjc-framework-Cocoa>=10; sys_platform == 'darwin'",
   "python-xlib>=0.33; sys_platform == 'linux'",
 ]
@@ -26,8 +27,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://astralpdf.com/desktop"
-Source = "https://github.com/jtaoufik/mandarine"
+Homepage = "https://github.com/anrennnn/Mandarine-Linux-Windows"
+Source = "https://github.com/anrennnn/Mandarine-Linux-Windows"
+Upstream = "https://github.com/jtaoufik/astral-shift"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-qt>=4.4", "pytest-cov>=5", "pyinstaller>=6.10"]

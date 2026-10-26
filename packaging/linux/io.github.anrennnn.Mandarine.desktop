@@ -1,0 +1,26 @@
+[Desktop Entry]
+Type=Application
+Name=Mandarine
+GenericName=File Converter
+GenericName[es]=Conversor de archivos
+Comment=Hold Shift while dragging a file: a radial wheel to convert, compress, crop and more
+Comment[es]=Mantén Shift mientras arrastras un archivo: una rueda para convertir, comprimir, recortar y más
+Exec=mandarine %F
+Icon=mandarine
+Terminal=false
+StartupNotify=false
+Categories=Utility;
+Keywords=convert;converter;pdf;docx;jpg;png;webp;heic;mp4;mp3;compress;ocr;conversor;convertir;comprimir;
+MimeType=application/pdf;image/png;image/jpeg;image/webp;image/bmp;image/tiff;image/gif;image/heic;image/heif;image/avif;image/vnd.microsoft.icon;application/msword;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.oasis.opendocument.text;application/rtf;text/plain;text/markdown;text/html;application/vnd.ms-excel;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.oasis.opendocument.spreadsheet;text/csv;application/vnd.ms-powerpoint;application/vnd.openxmlformats-officedocument.presentationml.presentation;application/vnd.oasis.opendocument.presentation;video/mp4;video/quicktime;video/x-matroska;video/webm;video/x-msvideo;video/x-m4v;video/x-ms-wmv;video/x-flv;video/3gpp;audio/mpeg;audio/x-wav;audio/wav;audio/ogg;audio/flac;audio/mp4;audio/x-m4a;audio/aac;audio/opus;audio/x-ms-wma;
+StartupWMClass=mandarine
+Actions=wheel;settings;
+
+[Desktop Action wheel]
+Name=Show Wheel
+Name[es]=Mostrar rueda
+Exec=mandarine wheel
+
+[Desktop Action settings]
+Name=Settings
+Name[es]=Ajustes
+Exec=mandarine

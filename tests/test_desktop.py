@@ -105,3 +105,45 @@ def test_bubble_drag_click_and_move(qtbot, tmp_path, jpg):
     s.setValue("bubble/pos", QPoint(-99999, -99999))  # its monitor is gone
     b.place()
     assert b.pos() == b.default_pos()
+
+
+def test_shape_without_compositor(qtbot, monkeypatch):
+    import sys
+    import types
+    from PySide6.QtCore import QRectF
+    from PySide6.QtWidgets import QWidget
+    from mandarine.gui import glass as G
+    w = QWidget()
+    qtbot.addWidget(w)
+    path = G.rounded(QRectF(0, 0, 50, 50), 10)
+    assert G.has_compositor()  # offscreen: nothing to fix
+    assert not G.shape_to(w, path)
+
+    monkeypatch.setattr(G.QGuiApplication, "platformName", staticmethod(lambda: "xcb"))
+    owner = {"value": 0}
+
+    class Display:
+        def get_default_screen(self):
+            return 0
+
+        def intern_atom(self, name):
+            assert name == "_NET_WM_CM_S0"
+            return 1
+
+        def get_selection_owner(self, atom):
+            return owner["value"]
+
+        def close(self):
+            pass
+    xlib = types.ModuleType("Xlib")
+    xlib.display = types.SimpleNamespace(Display=Display)
+    monkeypatch.setitem(sys.modules, "Xlib", xlib)
+    assert not G.has_compositor()
+    assert G.shape_to(w, path) and not w.mask().isEmpty()
+    owner["value"] = types.SimpleNamespace(id=42)
+    assert G.has_compositor()
+
+    def broken():
+        raise OSError("no display")
+    xlib.display = types.SimpleNamespace(Display=broken)
+    assert G.has_compositor()

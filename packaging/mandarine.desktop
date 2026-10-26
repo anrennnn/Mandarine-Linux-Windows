@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Mandarine
-Comment=Hold Shift while dragging a PDF or image: a radial wheel to convert, compress, crop and more
-Exec=mandarine
-Icon=mandarine
-Categories=Graphics;Utility;
-Terminal=false
-StartupNotify=false

@@ -26,7 +26,7 @@ from PySide6.QtWidgets import QWidget
 from .. import APP_NAME, ops
 from ..i18n import tr
 from . import icons
-from .glass import blur_behind
+from .glass import blur_behind, rounded, shape_to
 
 
 @dataclass(frozen=True)
@@ -246,6 +246,9 @@ class Wheel(QWidget):
         if not self.blurred:
             ring = OUTER + 10
             self.blurred = blur_behind(self, ring, SIZE / 2 - ring)
+        disc = QPainterPath()
+        disc.addEllipse(QPointF(SIZE / 2, SIZE / 2), OUTER + 10, OUTER + 10)
+        shape_to(self, disc.united(rounded(QRectF(10, SIZE - 28, SIZE - 20, 26), 6)))  # disc + name pill
         if self._sticky:
             self.setWindowFlag(Qt.WindowType.WindowDoesNotAcceptFocus, False)
             self.show()

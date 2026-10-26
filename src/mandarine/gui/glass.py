@@ -8,7 +8,7 @@ hint on KDE. Elsewhere the tint alone gives the glass look.
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QGuiApplication, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QGuiApplication, QLinearGradient, QPainter, QPainterPath, QPen, QRegion
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 RADIUS = 18
@@ -83,6 +83,39 @@ def _kwin_blur(widget: QWidget) -> bool:
         return False
 
 
+def has_compositor() -> bool:
+    """False only on X11 with no compositing manager, where translucent
+    windows show black instead of the desktop behind them."""
+    if QGuiApplication.platformName() != "xcb":
+        return True
+    try:
+        from Xlib import display  # type: ignore[import-not-found]
+
+        d = display.Display()
+    except Exception:
+        return True
+    try:
+        owner = d.get_selection_owner(d.intern_atom(f"_NET_WM_CM_S{d.get_default_screen()}"))
+        return bool(owner) and getattr(owner, "id", owner) != 0
+    finally:
+        d.close()
+
+
+def shape_to(widget: QWidget, path: QPainterPath) -> bool:
+    """Without a compositor, clip the window to ``path`` so it keeps its round
+    shape (no black corners). Returns True when a mask was set."""
+    if has_compositor():
+        return False
+    widget.setMask(QRegion(path.toFillPolygon().toPolygon()))
+    return True
+
+
+def rounded(rect: QRectF, radius: float) -> QPainterPath:
+    path = QPainterPath()
+    path.addRoundedRect(rect, radius, radius)
+    return path
+
+
 class GlassDialog(QDialog):
     """Frameless glass dialog: × at the top left, centred title, drag anywhere
     on the title row to move it."""
@@ -122,6 +155,10 @@ class GlassDialog(QDialog):
     def _blur(self) -> None:
         self.blurred = blur_behind(self)
         self.update()
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        shape_to(self, rounded(QRectF(self.rect()), RADIUS))
 
     def paintEvent(self, _e) -> None:
         p = QPainter(self)

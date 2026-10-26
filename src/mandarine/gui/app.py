@@ -21,7 +21,7 @@ from ..i18n import tr
 from . import autostart, icons, integrations, selection
 from .bubble import Bubble
 from .dialogs import DIALOGS, MergeDialog
-from .glass import blur_behind, paint_panel
+from .glass import blur_behind, paint_panel, rounded, shape_to
 from .hotkey import DEFAULT as DEFAULT_HOTKEY, Hotkey
 from .settings import GITHUB, SettingsDialog, open_url
 from .single import Server, send_to_running
@@ -140,6 +140,7 @@ class Toast(QWidget):
         self.raise_()
         if not self.blurred:
             self.blurred = blur_behind(self, 14)
+        shape_to(self, rounded(QRectF(self.rect()), 14))
         if sticky:
             self._hide.stop()
         else:

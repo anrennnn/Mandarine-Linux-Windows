@@ -8,11 +8,12 @@ bubble to open the wheel for files you drop next; drag it to move it.
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, QSettings, Qt, Signal
-from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen, QRadialGradient
+from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath, QPen, QRadialGradient
 from PySide6.QtWidgets import QWidget
 
 from .. import APP_NAME
 from . import icons
+from .glass import shape_to
 from .wheel import local_files
 
 SIZE = 64
@@ -53,6 +54,9 @@ class Bubble(QWidget):
         if QGuiApplication.screenAt(pos + QPoint(SIZE // 2, SIZE // 2)) is None:
             pos = self.default_pos()  # the monitor it was on is gone
         self.move(pos)
+        disc = QPainterPath()
+        disc.addEllipse(QRectF(1, 1, SIZE - 2, SIZE - 2))
+        shape_to(self, disc)
 
     def centre(self) -> QPoint:
         return self.frameGeometry().center()

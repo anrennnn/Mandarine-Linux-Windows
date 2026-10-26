@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.anrennnn.Mandarine</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <name>Mandarine</name>
+  <summary>Convert and edit files with a radial wheel while you drag them</summary>
+  <summary xml:lang="es">Convierte y edita archivos con una rueda mientras los arrastras</summary>
+  <description>
+    <p>Hold Shift while dragging a file and a wheel opens around the cursor. Drop the file on a
+    format to convert it, or on a tool to compress, crop, redact, annotate or put it on a background.
+    Everything happens on your computer; no file is uploaded.</p>
+    <p xml:lang="es">Mantén Shift mientras arrastras un archivo y se abre una rueda alrededor del cursor.
+    Suéltalo sobre un formato para convertirlo, o sobre una herramienta para comprimir, recortar, ocultar
+    datos, anotar o ponerle un fondo. Todo ocurre en tu ordenador; ningún archivo se sube a internet.</p>
+    <ul>
+      <li>PDF to Word (DOCX/ODT), text, JPG, PNG and WebP</li>
+      <li>Images to PDF, JPG, PNG, WebP, AVIF, HEIC, ICO and text (OCR)</li>
+      <li>Documents, spreadsheets and slides through LibreOffice</li>
+      <li>Video and audio through ffmpeg: MP4, WebM, GIF, MP3, M4A, FLAC and more</li>
+      <li>A floating bubble to drop files on, which also works on Wayland</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.anrennnn.Mandarine.desktop</launchable>
+  <url type="homepage">https://github.com/anrennnn/Mandarine-Linux-Windows</url>
+  <url type="bugtracker">https://github.com/anrennnn/Mandarine-Linux-Windows/issues</url>
+  <developer id="io.github.anrennnn">
+    <name>anrennnn</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.0.0" date="2026-10-26"/>
+  </releases>
+</component>

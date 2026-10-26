@@ -1,99 +1,110 @@
-<p align="center"><img src="docs/banner.png" alt="Mandarine: Hold Shift. Drag. Done." width="100%"></p>
+<p align="center"><img src="docs/icon.png" alt="Mandarine" width="112"></p>
 
-# Mandarine
+<h1 align="center">Mandarine</h1>
 
-Hold **Shift** while dragging a PDF or image. A glass wheel opens around the cursor. Drop the file on a wedge and the result is saved next to the original.
+<p align="center"><b>Mantén Shift, arrastra, suelta. Listo.</b><br>
+Una rueda que convierte y edita archivos mientras los arrastras, para Linux (Debian, Ubuntu, Mint y derivados).</p>
 
-Mandarine is free and open source (AGPL-3.0) and runs on **macOS** and **Linux**. Everything happens on your machine, and no file is ever uploaded.
+<p align="center"><img src="docs/wheels.png" alt="Las ruedas de Mandarine: formatos de un PDF, herramientas de un PDF, herramientas de vídeo y formatos de un documento" width="100%"></p>
 
-**Download:** [astralpdf.com/desktop](https://astralpdf.com/desktop) · [Latest release](https://github.com/jtaoufik/mandarine/releases/latest)
+Mantén **Shift** mientras arrastras un archivo y se abre una rueda alrededor del cursor. Suéltalo sobre un **formato** para convertirlo, o sobre una **herramienta** para comprimirlo, recortarlo, ocultar datos y más. El resultado se guarda junto al original y nunca se sobrescribe nada.
 
-<p align="center"><img src="docs/wheel.png" alt="The Mandarine wheel" width="420"></p>
+Todo ocurre en tu ordenador: ningún archivo se sube a internet. Es libre y gratuito (AGPL-3.0).
 
-## What the wheel does
+## Instalar
 
-| Wedge | Result |
+Descarga `mandarine_<versión>_amd64.deb` desde [Releases](https://github.com/anrennnn/Mandarine-Linux-Windows/releases/latest) e instálalo:
+
+```sh
+sudo apt install ./mandarine_1.0.0_amd64.deb
+```
+
+`apt` instala también lo recomendado: **ffmpeg** (vídeo y audio), **LibreOffice Writer** (Word y documentos) y **Tesseract** (OCR en español e inglés). Si alguno falta, Mandarine te dice qué paquete instalar cuando lo necesitas.
+
+Funciona en Debian 12 y 13, Ubuntu 22.04 o superior, Linux Mint 21 o superior, Pop!_OS, Zorin, elementary, MX y demás derivados de 64 bits (necesita glibc 2.34). El paquete trae su propio Python, así que no depende de la versión del sistema. Probado en Ubuntu 24.04.
+
+Para desinstalar: `sudo apt remove mandarine`.
+
+## Cómo se usa
+
+| Cómo | Qué hace |
 |---|---|
-| **Convert** | PDF to JPG/PNG/WebP (one image per page). Image to PDF/PNG/JPG/WebP. |
-| **Compress** | Smaller PDFs (downsampled images, subset fonts) and images. A file that would grow is kept as is. |
-| **Crop** | Drag a frame or pick a ratio (1:1, 16:9, 4:3…). For a PDF, the crop applies to every page. |
-| **Rotate** | 90° clockwise in one drop. |
-| **Add BG** | Puts the file on a gradient with padding, rounded corners and a shadow, and saves a PNG. |
-| **Redact** | Draw boxes. For a PDF the text, vectors and image pixels underneath are **removed**, not just covered. |
-| **Edit** | Rotate, flip, resize, brightness, contrast, saturation, black and white. For a PDF: rotate or **split into pages**. |
-| **Metadata** | Shows author, software, GPS, dates and XMP, and saves a clean copy without them. |
-| **Annotate** (centre) | Pen, highlighter, boxes, arrows and text. |
-| **Merge** (centre, 2+ files) | Joins PDFs and images into one PDF, in the order you choose. |
+| **Shift + arrastrar** un archivo | Abre la rueda de **formatos** (X11: Cinnamon, MATE, XFCE, KDE/GNOME en X11) |
+| **Ctrl + Shift + arrastrar** | Abre directamente la rueda de **herramientas** |
+| Quedarte quieto sobre el **centro**, o **Tab** | Cambia entre formatos y herramientas |
+| Soltar archivos en la **burbuja flotante** 🍊 | Abre la rueda en cualquier escritorio, también en **Wayland** |
+| **Clic derecho → Mandarine** en el gestor de archivos | Nautilus, Dolphin, Nemo, Caja, Thunar y PCManFM |
+| **Abrir con → Mandarine** | Desde cualquier gestor de archivos |
+| **Ctrl + Alt + Espacio** | Abre la rueda (en GNOME Wayland, se configura con un botón en Ajustes) |
+| `mandarine archivo.pdf` | Abre la rueda para ese archivo |
 
-Results never overwrite anything: `Page 001.pdf` becomes `Page 001.jpg`, `Page 001 Cropped.pdf`, `Page 001 Merged.pdf`…
+### Formatos
 
-<p align="center">
-  <img src="docs/add-background.png" alt="Add background" width="49%">
-  <img src="docs/merge.png" alt="Merge into PDF" width="49%">
-</p>
+| Archivo | Se convierte a |
+|---|---|
+| **PDF** | DOCX, JPG, PNG, TXT, WebP, ODT |
+| **Imagen** (JPG, PNG, WebP, HEIC, AVIF, GIF, BMP, TIFF, ICO) | PDF, JPG, PNG, WebP, AVIF, HEIC, ICO, TXT (OCR) |
+| **Documento** (DOCX, DOC, ODT, RTF, TXT, MD, HTML) | PDF, DOCX, ODT, TXT, HTML, RTF |
+| **Hoja de cálculo** (XLSX, XLS, ODS, CSV) | PDF, XLSX, ODS, CSV |
+| **Presentación** (PPTX, PPT, ODP) | PDF, PPTX, ODP, PNG |
+| **Vídeo** (MP4, MOV, MKV, WebM, AVI…) | MP4, WebM, GIF, MP3, MOV, MKV |
+| **Audio** (MP3, WAV, FLAC, OGG, M4A, Opus…) | MP3, M4A, WAV, OGG, FLAC, Opus |
 
-## Three ways to open the wheel
+Un PDF escaneado sin texto pasa por OCR automáticamente al convertirlo a TXT.
 
-1. **Shift + drag** any PDF or image, from Finder, the desktop, Nautilus, Dolphin…
-2. **Keyboard shortcut**: ⌃⌥Space on macOS, Ctrl+Alt+Space on Linux. You can change it in Settings. On macOS the wheel opens for the files selected in Finder, so you click a wedge instead of dropping.
-3. **Right-click menu**: turn on *Add Mandarine to the right-click menu* in Settings. On macOS this adds a Finder Quick Action. On Linux it adds a Nautilus script, a Dolphin service menu and a Nemo action.
+### Herramientas
 
-<p align="center"><img src="docs/settings.png" alt="Settings" width="520"></p>
+| Tipo | Herramientas |
+|---|---|
+| **PDF e imágenes** | Comprimir · Recortar (con proporciones 1:1, 16:9, 9:16…) · Fondo (degradado, márgenes, esquinas, sombra) · Ocultar (borra de verdad el texto bajo el recuadro) · Editar (brillo, contraste, voltear, tamaño; separar páginas de un PDF) · Girar · Metadatos · Anotar · **Unir** varios en un PDF |
+| **Vídeo** | Comprimir · Silenciar · Girar · Bajar a 720p · Ajustar volumen (-16 LUFS) · Limpiar metadatos |
+| **Audio** | Comprimir · Ajustar volumen · Limpiar metadatos |
 
-### Permissions
+## Escritorios
 
-macOS needs **no Accessibility or Input Monitoring permission**. Mandarine only reads state the OS already shares with every app: whether the mouse button and Shift are down, and whether a drag has started. The first time the shortcut reads your Finder selection, macOS asks once whether Mandarine may talk to Finder.
+| Escritorio | Shift + arrastrar | Burbuja | Clic derecho | Atajo global |
+|---|---|---|---|---|
+| GNOME (X11) | ✅ | ✅ | Nautilus ✅ | ✅ |
+| GNOME (Wayland) | — | ✅ | Nautilus ✅ | ✅ con un clic en Ajustes |
+| KDE Plasma (X11) | ✅ | ✅ | Dolphin ✅ | ✅ |
+| KDE Plasma (Wayland) | — | ✅ | Dolphin ✅ | en Preferencias del sistema → Atajos: `mandarine wheel` |
+| Cinnamon / MATE / XFCE / LXQt | ✅ | ✅ | Nemo / Caja / Thunar / PCManFM ✅ | ✅ |
 
-On **Linux X11**, Shift+drag and the shortcut work out of the box. **Wayland** doesn't let apps watch global input, so use the tray icon, or bind `mandarine wheel` to a shortcut in your desktop's keyboard settings.
+Wayland no deja que ninguna app vea un arrastre en otra ventana: por eso existe la burbuja, que en Wayland viene activada por defecto. Para que la rueda y la burbuja puedan colocarse donde toca, Mandarine se ejecuta a través de XWayland.
 
-## Command line
-
-The same operations are available from a terminal:
+## Línea de comandos
 
 ```sh
-mandarine convert "Page 001.pdf" --to png
-mandarine compress scan.pdf --level high
-mandarine merge cover.pdf photo.jpg report.pdf --out all.pdf
-mandarine split report.pdf
-mandarine crop photo.jpg --rect 0.1 0.1 0.9 0.9
-mandarine redact contract.pdf --rect 0.1 0.2 0.6 0.25 --page 2
-mandarine background shot.png --preset ocean --ratio 16:9
-mandarine metadata photo.jpg --strip
-mandarine wheel file.pdf      # open the wheel for a file
+mandarine convert "Factura.pdf" --to docx
+mandarine convert foto.heic --to jpg
+mandarine convert escaneo.png --to txt        # OCR
+mandarine convert video.mov --to mp4
+mandarine compress video.mp4 --level high
+mandarine mute video.mp4
+mandarine resize video.mp4 --height 720
+mandarine normalize podcast.wav
+mandarine merge a.pdf b.pdf foto.jpg
+mandarine targets archivo.pdf                 # a qué formatos se puede convertir
+mandarine --help
 ```
 
-## Install from source
+## Desarrollo
 
 ```sh
-git clone https://github.com/jtaoufik/mandarine
-cd mandarine
+sudo apt install python3-venv ffmpeg libreoffice-writer tesseract-ocr tesseract-ocr-spa \
+  xvfb libxcb-cursor0 libegl1 libxkbcommon-x11-0
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/mandarine            # starts the menu-bar / tray app
+.venv/bin/mandarine                      # arranca la app
+xvfb-run -a .venv/bin/python -m pytest   # tests, con cobertura del 100 % obligatoria
+./scripts/build-deb.sh                   # genera dist/mandarine_<versión>_amd64.deb
 ```
 
-You need Python 3.10 or newer. On Linux you also need the Qt xcb libraries (on Debian/Ubuntu: `libxcb-cursor0`).
+- `src/mandarine/ops/`: las operaciones sobre archivos, sin interfaz (PyMuPDF, Pillow, ffmpeg, LibreOffice, Tesseract).
+- `src/mandarine/gui/`: la rueda, la burbuja, la bandeja, los diálogos y la integración con cada escritorio.
+- `src/mandarine/i18n.py`: textos en español (se usan si el sistema está en español; `MANDARINE_LANG=en` fuerza inglés).
 
-## Development
+Cada versión etiquetada (`v1.2.3`) compila el `.deb` en GitHub Actions y lo publica en Releases.
 
-```sh
-.venv/bin/python -m pytest        # every test, with 100% line coverage enforced
-```
+## Créditos y licencia
 
-- `src/mandarine/ops/`: the file operations (PyMuPDF and Pillow), with no UI code.
-- `src/mandarine/gui/`: the wheel, the dialogs, the glass windows, the global shortcut, the Shift+drag watcher and the file-manager integrations.
-- `src/mandarine/cli.py`: the command line.
-
-Pull requests are welcome. Keep coverage at 100%.
-
-## More free tools
-
-Mandarine is part of the Astral family. These tools also run in your browser:
-
-- [AstralPDF](https://astralpdf.com): merge, split, compress, unlock and watermark PDFs
-- [AstralText](https://astraltext.com): clean AI text, strip Markdown, fix spacing
-- [AstralJSON](https://astraljson.com): prettify, compare and validate JSON
-- [AstralBatch](https://astralbatch.com): batch image tools
-
-## License
-
-[GNU AGPL-3.0](LICENSE). Mandarine uses [PyMuPDF](https://pymupdf.readthedocs.io) (AGPL), [Qt for Python](https://doc.qt.io/qtforpython/) (LGPL) and [Pillow](https://python-pillow.org) (HPND).
+Mandarine parte de [Astral Shift](https://github.com/jtaoufik/astral-shift), de Taoufik Jabbari, y se inspira en el gesto de [Tangerine](https://tangerineformac.com/) para Mac, con la que no tiene relación. Licencia [GNU AGPL-3.0-or-later](LICENSE). El paquete incluye CPython (PSF), Qt for Python/PySide6 (LGPL-3.0), PyMuPDF (AGPL-3.0), Pillow (MIT-CMU), pillow-heif (BSD-3) y python-xlib (LGPL-2.1).
