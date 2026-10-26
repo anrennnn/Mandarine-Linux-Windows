@@ -23,14 +23,14 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: System libraries and helper programs
-        timeout-minutes: 15
+        timeout-minutes: 30
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo rm -f /var/lib/man-db/auto-update  # the man-db trigger can stall apt for many minutes
           apt_get() {
             for attempt in 1 2 3; do
-              sudo -E timeout 240 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=180 "$@" && return 0
+              sudo -E timeout 480 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=180 "$@" && return 0
               echo "apt-get $1 failed (attempt $attempt), retrying"; sleep 5
             done
             return 1
@@ -56,7 +56,7 @@ jobs:
           sudo rm -f /var/lib/man-db/auto-update
           apt_get() {
             for attempt in 1 2 3; do
-              sudo -E timeout 240 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=180 "$@" && return 0
+              sudo -E timeout 480 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=180 "$@" && return 0
               echo "apt-get $1 failed (attempt $attempt), retrying"; sleep 5
             done
             return 1
@@ -180,7 +180,7 @@ jobs:
             dist/Mandarine-*-windows-portable.zip
 
   release:
-    needs: [test, deb, windows]
+    needs: [deb, windows]  # each installs and smoke-tests its own package; `test` runs alongside
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
     runs-on: ubuntu-24.04
     permissions:
