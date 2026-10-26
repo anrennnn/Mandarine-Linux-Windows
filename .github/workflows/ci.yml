@@ -37,11 +37,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Build the .deb
-        run: ./scripts/build-deb.sh
-      - name: Install it and convert a file
+      - name: Qt runtime libraries (the build smoke-tests the bundled Qt)
         run: |
           sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 \
+            libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
+            libxcb-xkb1 libdbus-1-3 libfontconfig1
+      - name: Build the .deb
+        run: bash -x ./scripts/build-deb.sh
+      - name: Install it and convert a file
+        run: |
           sudo apt-get install -y ./dist/mandarine_*_amd64.deb
           printf 'Hola\n' > nota.txt
           mandarine --version
