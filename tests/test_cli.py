@@ -94,3 +94,11 @@ def test_module_entry_points(monkeypatch, jpg):
     with pytest.raises(SystemExit) as e:
         runpy.run_module("mandarine.cli", run_name="__main__")
     assert e.value.code == 0
+
+
+def test_bare_files_open_the_wheel(monkeypatch, jpg):
+    from mandarine.gui import app as A
+    got = []
+    monkeypatch.setattr(A, "run_app", lambda files=None: got.append(files) or 0)
+    assert cli.main([str(jpg)]) == 0
+    assert got == [[jpg.resolve()]]

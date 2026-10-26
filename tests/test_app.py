@@ -70,11 +70,49 @@ def test_human_size():
 def test_reveal(monkeypatch, tmp_path):
     calls = []
     monkeypatch.setattr(A.subprocess, "Popen", calls.append)
+    monkeypatch.setattr(A.shutil, "which", lambda name: None)
     monkeypatch.setattr(sys, "platform", "darwin")
     A.reveal(tmp_path / "a.jpg")
     monkeypatch.setattr(sys, "platform", "linux")
     A.reveal(tmp_path / "a.jpg")
     assert calls == [["open", "-R", str(tmp_path / "a.jpg")], ["xdg-open", str(tmp_path)]]
+    # With D-Bus FileManager1 the file itself is selected; on failure, fall back to the folder.
+    import subprocess as sp
+    monkeypatch.setattr(A.shutil, "which", lambda name: "/usr/bin/gdbus")
+    codes = [0, 1]
+    monkeypatch.setattr(A.subprocess, "run", lambda args, **k: sp.CompletedProcess(args, codes.pop(0)))
+    A.reveal(tmp_path / "a.jpg")
+    A.reveal(tmp_path / "a.jpg")
+    assert calls[-1] == ["xdg-open", str(tmp_path)] and len(calls) == 3
+
+
+def test_first_run_sets_up_once(core, monkeypatch):
+    monkeypatch.setattr(sys, "platform", "linux")
+    installed, opened = [], []
+    monkeypatch.setattr(A.integrations, "is_installed", lambda: False)
+    monkeypatch.setattr(A.integrations, "install", lambda: installed.append(1))
+    monkeypatch.setattr(core, "open_settings", lambda: opened.append(1))
+    core.first_run()
+    core.first_run()
+    assert installed == [1] and opened == [1]
+
+
+def test_prefer_xwayland(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
+    monkeypatch.setenv("DISPLAY", ":0")
+    monkeypatch.delenv("QT_QPA_PLATFORM", raising=False)
+    A.prefer_xwayland()
+    assert A.os.environ["QT_QPA_PLATFORM"] == "xcb"
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+
+
+def test_wheel_position_and_bubble(core, monkeypatch, jpg):
+    monkeypatch.setattr(A, "is_wayland", lambda: True)
+    assert core.wheel_pos() == A.QGuiApplication.primaryScreen().availableGeometry().center()
+    core._on_bubble_drag(QPoint(300, 300), [jpg])
+    assert core.wheel.isVisible() and core.wheel.files == [jpg]
+    core.wheel.dismiss()
 
 
 def test_task_signals(qtbot):
@@ -117,10 +155,8 @@ def test_tray_icon_per_platform(qapp, monkeypatch):
 def test_tray_menu(core, monkeypatch):
     opened = []
     monkeypatch.setattr(A, "open_url", opened.append)
-    for name, url, _ in A.TOOLS:
-        menu_action(core, name).trigger()
     menu_action(core, "Mandarine on GitHub").trigger()
-    assert opened == [u for _, u, _ in A.TOOLS] + [A.GITHUB]
+    assert opened == [A.GITHUB]
 
     shown = []
     monkeypatch.setattr(core, "show_wheel", lambda sticky=False, files=None: shown.append((sticky, files)))
@@ -144,6 +180,10 @@ def test_messages_and_hotkey(core, monkeypatch, jpg, tmp_path):
     core.on_message("wheel")
     core.on_message(f"wheel\t{jpg}\t{tmp_path / 'notes.xyz'}")
     core.on_message("other")
+    opened = []
+    monkeypatch.setattr(core, "open_settings", lambda: opened.append(1))
+    core.on_message("settings")
+    assert opened == [1]
     monkeypatch.setattr(A.selection, "finder_selection", lambda: [jpg])
     core.on_hotkey()
     monkeypatch.setattr(A.selection, "finder_selection", lambda: [])
@@ -161,8 +201,12 @@ def test_settings_window_applies_changes(core, qtbot, monkeypatch, tmp_path):
     core.open_settings()  # second call reuses the window
     assert core.settings_dialog is dlg
 
-    dlg.combos["convert/pdf"].setCurrentIndex(1)
-    assert core.wheel.convert_target["pdf"] == "png"
+    dlg.checks["wheel/first"].setChecked(True)
+    assert core.wheel.first_mode == "tools"
+    dlg.checks["bubble"].setChecked(True)
+    assert core.bubble.isVisible()
+    dlg.checks["bubble"].setChecked(False)
+    assert not core.bubble.isVisible()
     dlg.combos["compress/level"].setCurrentIndex(2)
     assert core.compress_level == "high"
     dlg.checks["enabled"].setChecked(False)
@@ -195,25 +239,7 @@ def test_hotkey_status_texts(core, monkeypatch):
     assert "taken" in core.hotkey_status()
     core.hotkey.backend.accept = True
     core.hotkey.set("Ctrl+K")
-    monkeypatch.setattr(sys, "platform", "darwin")
-    assert "Finder" in core.hotkey_status()
-    monkeypatch.setattr(sys, "platform", "linux")
     assert "drop" in core.hotkey_status()
-
-
-def test_tips_every_two_months(core, monkeypatch):
-    from datetime import datetime, timedelta
-    shown = []
-    monkeypatch.setattr(A, "tips_due", lambda s: True)
-    core.maybe_show_tips()
-    assert core.tools_dialog is not None and core.tools_dialog.isVisible()
-    core.show_tips()  # already open: reused
-    core.tools_dialog.reject()
-    assert core.tools_dialog is None
-    assert core.settings.value("tips/last_shown")
-    monkeypatch.setattr(A, "tips_due", lambda s: False)
-    core.maybe_show_tips()
-    assert core.tools_dialog is None
 
 
 def test_is_wayland(monkeypatch):
@@ -227,8 +253,10 @@ def test_is_wayland(monkeypatch):
 def test_unavailable_watcher_says_so(qapp, tmp_path):
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     c = A.Mandarine(qapp, settings=settings, backend=None, hotkey_backend=None)
-    assert menu_action(c, "Shift+drag is unavailable here: use Show Wheel") is not None
+    assert menu_action(c, "Shift+drag is unavailable here: use the bubble or Show Wheel") is not None
+    assert c.bubble.isVisible()  # the only global trigger left: on by default
     c.tray.hide()
+    c.bubble.hide()
 
 
 def test_wheel_follows_the_drag(core, qtbot):
@@ -240,14 +268,11 @@ def test_wheel_follows_the_drag(core, qtbot):
 
 
 def test_convert_compress_rotate_run_in_background(core, qtbot, pdf, jpg, tmp_path):
-    core.run_action("convert", [pdf])
+    core.run_action("to:jpg", [pdf])
     qtbot.waitUntil(lambda: bool(core._tasks) or core.toast.title.text().endswith("done"), timeout=5000)
     wait_done(qtbot, core)
     assert core.toast.title.text() == "Converting to JPG done"
     assert (tmp_path / "Page 001 p1.jpg").exists()
-
-    core.wheel.convert_target["image"] = "jpg"  # own format: falls back to PDF
-    assert core.convert_target(jpg) == "pdf"
 
     core._run("compress", [jpg])
     wait_done(qtbot, core)
@@ -330,7 +355,8 @@ def test_run_app(qapp, monkeypatch, tmp_path, capsys, jpg):
     sent = []
     monkeypatch.setattr(A, "send_to_running", lambda msg: sent.append(msg) or True)
     assert A.run_app([jpg]) == 0
-    assert sent == [f"wheel\t{jpg}"]
+    assert A.run_app() == 0
+    assert sent == [f"wheel\t{jpg}", "settings"]
 
     monkeypatch.setattr(A, "send_to_running", lambda msg: False)
     monkeypatch.setattr(single, "NAME", f"astral-test-{tmp_path.name}")
@@ -340,16 +366,20 @@ def test_run_app(qapp, monkeypatch, tmp_path, capsys, jpg):
     monkeypatch.setattr(A, "Hotkey", lambda parent, backend="auto": _NoHotkey(parent))
     shown, messages = [], []
     monkeypatch.setattr(A.Mandarine, "show_wheel", lambda self, sticky=False, files=None: shown.append(sticky))
+    monkeypatch.setattr(A.Mandarine, "first_run", lambda self: shown.append("first"))
     monkeypatch.setattr(A.Mandarine, "on_message", lambda self, m: messages.append(m))
 
     def exec_briefly(self):
         QApplication.processEvents()
-        qwait(400)
+        qwait(800)
         return 0
     monkeypatch.setattr(QApplication, "exec", exec_briefly)
-    monkeypatch.setenv("MANDARINE_SHIFT_SHOW_WHEEL", "1")
+    monkeypatch.setenv("MANDARINE_SHOW_WHEEL", "1")
     assert A.run_app() == 0
     assert shown == [True]
+    monkeypatch.delenv("MANDARINE_SHOW_WHEEL")
+    assert A.run_app() == 0
+    assert shown == [True, "first"]
     assert A.run_app([jpg]) == 0
     assert messages == [f"wheel\t{jpg}"]
     assert "no system tray" in capsys.readouterr().err

@@ -1,6 +1,12 @@
-"""Command line: ``mandarine`` with no arguments starts the app.
+"""Command line: ``mandarine`` with no arguments starts the app;
+``mandarine FILES`` opens the wheel for them.
 
-    mandarine convert "Page 001.pdf" --to jpg
+    mandarine convert "Page 001.pdf" --to docx
+    mandarine convert clip.mov --to mp4
+    mandarine convert scan.png --to txt        # OCR
+    mandarine mute clip.mp4
+    mandarine resize clip.mp4 --height 720
+    mandarine normalize podcast.wav
     mandarine compress scan.pdf --level high
     mandarine crop photo.jpg --rect 0.1 0.1 0.9 0.9
     mandarine rotate photo.jpg --degrees 90
@@ -28,14 +34,28 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = p.add_subparsers(dest="cmd")
 
-    s = sub.add_parser("convert", help="convert PDF <-> images")
+    s = sub.add_parser("convert", help="convert between formats (documents, images, video, audio)")
     s.add_argument("files", nargs="+", type=Path)
-    s.add_argument("--to", help="target format: jpg, png, webp, pdf (default: jpg for PDFs, pdf for images)")
+    s.add_argument("--to", help="target format, e.g. docx, txt, jpg, png, webp, avif, heic, pdf, mp4, gif, mp3 "
+                                "(default: jpg for PDFs, pdf for images and documents, mp4 for video, mp3 for audio)")
     s.add_argument("--dpi", type=int, default=200)
 
     s = sub.add_parser("compress", help="make files smaller")
     s.add_argument("files", nargs="+", type=Path)
     s.add_argument("--level", choices=["low", "medium", "high"], default="medium")
+
+    s = sub.add_parser("mute", help="remove the audio track of a video")
+    s.add_argument("files", nargs="+", type=Path)
+
+    s = sub.add_parser("resize", help="scale a video down to a height (keeps the aspect ratio)")
+    s.add_argument("files", nargs="+", type=Path)
+    s.add_argument("--height", type=int, default=720)
+
+    s = sub.add_parser("normalize", help="even out loudness of audio or video (-16 LUFS)")
+    s.add_argument("files", nargs="+", type=Path)
+
+    s = sub.add_parser("targets", help="list the formats a file converts to")
+    s.add_argument("files", nargs="+", type=Path)
 
     s = sub.add_parser("crop", help="crop to a normalised rect (0..1)")
     s.add_argument("files", nargs="+", type=Path)
@@ -92,6 +112,15 @@ def run(args: argparse.Namespace) -> int:
                 outs = ops.convert(f, args.to, dpi=args.dpi)
             elif args.cmd == "compress":
                 outs = [ops.compress(f, args.level)]
+            elif args.cmd == "mute":
+                outs = [ops.media.mute(f)]
+            elif args.cmd == "resize":
+                outs = [ops.media.resize(f, args.height)]
+            elif args.cmd == "normalize":
+                outs = [ops.media.normalize(f)]
+            elif args.cmd == "targets":
+                print(f"{f}: {', '.join(ops.targets_for(f))}")
+                continue
             elif args.cmd == "crop":
                 outs = [ops.crop(f, _rect(args.rect))]
             elif args.cmd == "rotate":
@@ -125,7 +154,14 @@ def run(args: argparse.Namespace) -> int:
     return status
 
 
+COMMANDS = {"convert", "compress", "mute", "resize", "normalize", "targets", "crop", "rotate", "background",
+            "redact", "metadata", "merge", "split", "wheel", "gui"}
+
+
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv and argv[0] not in COMMANDS and not argv[0].startswith("-"):
+        argv = ["wheel", *argv]  # "Open with Mandarine" passes the files straight in
     args = build_parser().parse_args(argv)
     if args.cmd in (None, "gui"):
         from .gui.app import run_app

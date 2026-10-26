@@ -26,7 +26,7 @@ def fake(qapp):
     b = FakeBackend()
     w = W.DragWatcher(backend=b)
     fired, released = [], []
-    w.shift_drag.connect(fired.append)
+    w.shift_drag.connect(lambda pos, ctrl: fired.append(pos))
     w.released.connect(lambda: released.append(1))
     return b, w, fired, released
 
@@ -74,6 +74,18 @@ def test_loose_backend_needs_no_new_token(fake):
     assert len(fired) == 1
 
 
+def test_ctrl_is_reported(qapp):
+    b = FakeBackend()
+    w = W.DragWatcher(backend=b)
+    got = []
+    w.shift_drag.connect(lambda pos, ctrl: got.append(ctrl))
+    b.s = W.State(True, True, 1, True)
+    w.poll(QPoint(0, 0))
+    b.s = W.State(True, True, 2, True)
+    w.poll(QPoint(30, 0))
+    assert got == [True]
+
+
 def test_start_stop_and_cursor_poll(qapp):
     b = FakeBackend()
     w = W.DragWatcher(backend=b)
@@ -115,7 +127,7 @@ def test_x11_backend(monkeypatch):
             return owners.pop(0)
 
     xlib = types.ModuleType("Xlib")
-    xlib.X = types.SimpleNamespace(Button1Mask=256, ShiftMask=1)
+    xlib.X = types.SimpleNamespace(Button1Mask=256, ShiftMask=1, ControlMask=4)
     xlib.display = types.SimpleNamespace(Display=Display)
     monkeypatch.setitem(sys.modules, "Xlib", xlib)
     b = W.X11Backend()

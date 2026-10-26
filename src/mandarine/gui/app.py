@@ -1,7 +1,9 @@
-"""Tray app: watches for Shift+drag and the shortcut, shows the wheel, runs the action."""
+"""Tray app: watches for Shift+drag, the shortcut and the bubble, shows the
+wheel and runs the action off the UI thread."""
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import traceback
@@ -9,45 +11,49 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QObject, QPoint, QRectF, QRunnable, QSettings, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QColor, QCursor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QCursor, QGuiApplication, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QHBoxLayout, QLabel, QMenu, QPushButton, QSystemTrayIcon, QVBoxLayout, QWidget,
 )
 
 from .. import APP_ID, APP_NAME, ops
+from ..i18n import tr
 from . import autostart, icons, integrations, selection
+from .bubble import Bubble
 from .dialogs import DIALOGS, MergeDialog
 from .glass import blur_behind, paint_panel
 from .hotkey import DEFAULT as DEFAULT_HOTKEY, Hotkey
-from .settings import GITHUB, TOOLS, SettingsDialog, ToolsDialog, mark_tips_shown, open_url, tips_due
+from .settings import GITHUB, SettingsDialog, open_url
 from .single import Server, send_to_running
 from .style import QSS
 from .watcher import DragWatcher
-from .wheel import Wheel
+from .wheel import Wheel, human_size
 
-VERBS = {
-    "convert": "Converting", "compress": "Compressing", "rotate": "Rotating", "crop": "Cropping",
-    "background": "Adding background", "redact": "Redacting", "annotate": "Saving annotations",
-    "edit": "Saving edits", "metadata": "Cleaning metadata", "merge": "Merging",
+# Toast titles while working. Keys are wheel actions; "to:" conversions say their format.
+TITLES = {
+    "compress": "Compressing…", "rotate": "Rotating…", "mute": "Removing audio…", "resize": "Resizing to 720p…",
+    "normalize": "Normalizing loudness…", "metadata": "Cleaning metadata…", "crop": "Cropping…",
+    "background": "Adding background…", "redact": "Redacting…", "annotate": "Saving annotations…",
+    "edit": "Saving edits…", "merge": "Merging…",
 }
-
-TIPS_CHECK_MS = 6 * 60 * 60 * 1000  # the app runs for weeks: look again every 6 hours
-
-
-def human_size(n: float) -> str:
-    unit = "B"
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024 or unit == "GB":
-            break
-        n /= 1024
-    return f"{n:.0f} B" if unit == "B" else f"{n:.1f} {unit}"
+MEDIA = ("video", "audio")
 
 
 def reveal(path: Path) -> None:
+    """Open the folder with ``path`` selected (FileManager1 D-Bus), else just the folder."""
     if sys.platform == "darwin":
         subprocess.Popen(["open", "-R", str(path)])
-    else:
-        subprocess.Popen(["xdg-open", str(path.parent)])
+        return
+    gdbus = shutil.which("gdbus")
+    if gdbus:
+        proc = subprocess.run(
+            [gdbus, "call", "--session", "--dest", "org.freedesktop.FileManager1",
+             "--object-path", "/org/freedesktop/FileManager1", "--method",
+             "org.freedesktop.FileManager1.ShowItems", f"['{path.resolve().as_uri()}']", ""],
+            capture_output=True, timeout=5)
+        if proc.returncode == 0:
+            return
+    subprocess.Popen(["xdg-open", str(path.parent)])
 
 
 def is_wayland() -> bool:
@@ -58,6 +64,7 @@ def is_wayland() -> bool:
 
 class _Signals(QObject):
     progress = Signal(int, int)
+    percent = Signal(int)
     done = Signal(list)
     failed = Signal(str)
 
@@ -94,15 +101,16 @@ class Toast(QWidget):
         self.title.setStyleSheet("font-weight: 600;")
         self.detail = QLabel()
         self.detail.setObjectName("Muted")
+        self.detail.setWordWrap(True)
         row = QHBoxLayout()
         row.addWidget(self.detail, 1)
-        self.show_btn = QPushButton("Show")
+        self.show_btn = QPushButton(tr("Show"))
         self.show_btn.setObjectName("Chip")
         self.show_btn.clicked.connect(self._reveal)
         row.addWidget(self.show_btn)
         lay.addWidget(self.title)
         lay.addLayout(row)
-        self.setFixedWidth(320)
+        self.setFixedWidth(340)
         self.blurred = False
         self._path: Path | None = None
         self._hide = QTimer(self)
@@ -135,7 +143,7 @@ class Toast(QWidget):
         if sticky:
             self._hide.stop()
         else:
-            self._hide.start(5000)
+            self._hide.start(6000)
 
 
 # --- app ----------------------------------------------------------------------------------
@@ -149,7 +157,7 @@ def tray_icon() -> QIcon:
         p.drawImage(pm.rect(), icons.image("logo", 64, "#000000", 2.2))
     else:
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor("#e8442a"))
+        p.setBrush(QColor("#f0702e"))
         p.drawEllipse(2, 2, 60, 60)
         p.drawImage(pm.rect().adjusted(10, 10, -10, -10), icons.image("logo", 44, "#ffffff", 2.2))
     p.end()
@@ -163,7 +171,7 @@ class Mandarine(QObject):
     def __init__(self, app: QApplication, settings: QSettings | None = None, backend="auto", hotkey_backend="auto") -> None:
         super().__init__()
         self.app = app
-        self.settings = settings if settings is not None else QSettings("AstralPDF", "Mandarine")
+        self.settings = settings if settings is not None else QSettings("Mandarine", "Mandarine")
         self.pool = QThreadPool.globalInstance()
         self.wheel = Wheel()
         self.wheel.dropped.connect(self.run_action)
@@ -173,39 +181,39 @@ class Mandarine(QObject):
         self.watcher.released.connect(self.wheel.drag_released)
         self.hotkey = Hotkey(self, backend=hotkey_backend)
         self.hotkey.activated.connect(self.on_hotkey)
+        self.bubble = Bubble(self.settings)
+        self.bubble.entered.connect(self._on_bubble_drag)
+        self.bubble.clicked.connect(lambda pos: self.wheel.popup(pos, sticky=True))
         self._open_dialogs: list = []
         self._tasks: list[Task] = []
         self.settings_dialog: SettingsDialog | None = None
-        self.tools_dialog: ToolsDialog | None = None
         self._load_settings()
         self.hotkey.set(str(self.settings.value("hotkey", DEFAULT_HOTKEY)))
         self._build_tray()
         self.watcher.start()
-        self._tips_timer = QTimer(self)
-        self._tips_timer.setInterval(TIPS_CHECK_MS)
-        self._tips_timer.timeout.connect(self.maybe_show_tips)
-        self._tips_timer.start()
-        QTimer.singleShot(4000, self.maybe_show_tips)
 
     # --- settings ---------------------------------------------------------------
 
     def _load_settings(self) -> None:
-        self.wheel.convert_target = {
-            "pdf": str(self.settings.value("convert/pdf", "jpg")),
-            "image": str(self.settings.value("convert/image", "pdf")),
-        }
+        self.wheel.first_mode = str(self.settings.value("wheel/first", "formats"))
         self.compress_level = str(self.settings.value("compress/level", "medium"))
         self.watcher.enabled = self.settings.value("enabled", True, type=bool)
+        # The bubble is the only global trigger on Wayland, so it is on there by default.
+        want_bubble = self.settings.value("bubble", not self.watcher.available, type=bool)
+        if want_bubble and not self.bubble.isVisible():
+            self.bubble.place()
+            self.bubble.show()
+        elif not want_bubble and self.bubble.isVisible():
+            self.bubble.hide()
 
     def hotkey_status(self) -> str:
         if not self.hotkey.available:
-            return "A global shortcut is not available in this session."
+            return tr("A global shortcut is not available in this session.")
         if not self.hotkey.text:
-            return "No shortcut set."
+            return tr("No shortcut set.")
         if not self.hotkey.ok:
-            return "That shortcut is taken by another app or not supported. Try another one."
-        what = "selected Finder files" if sys.platform == "darwin" else "files you then drop on it"
-        return f"Opens the wheel for the {what}."
+            return tr("That shortcut is taken by another app or not supported. Try another one.")
+        return tr("Opens the wheel for the files you then drop on it.")
 
     def apply_setting(self, key: str, value) -> None:
         """Called by the settings window after it stored ``value``."""
@@ -223,6 +231,7 @@ class Mandarine(QObject):
         # The OS is the source of truth for these two.
         self.settings.setValue("login", autostart.is_enabled())
         self.settings.setValue("context_menu", integrations.is_installed())
+        self.settings.setValue("bubble", self.bubble.isVisible())
         if self.settings_dialog is None:
             self.settings_dialog = SettingsDialog(self.settings, self.hotkey_status(), is_wayland())
             self.settings_dialog.changed.connect(self.apply_setting)
@@ -235,23 +244,14 @@ class Mandarine(QObject):
         self.settings_dialog.deleteLater()
         self.settings_dialog = None
 
-    # --- Astral tools reminder ---------------------------------------------------------
-
-    def maybe_show_tips(self) -> None:
-        if tips_due(self.settings):
-            self.show_tips()
-
-    def show_tips(self) -> None:
-        mark_tips_shown(self.settings)
-        if self.tools_dialog is None:
-            self.tools_dialog = ToolsDialog()
-            self.tools_dialog.finished.connect(self._tips_closed)
-        self.tools_dialog.show()
-        self.tools_dialog.raise_()
-
-    def _tips_closed(self, _result: int) -> None:
-        self.tools_dialog.deleteLater()
-        self.tools_dialog = None
+    def first_run(self) -> None:
+        """The first launch sets up the right-click menu and shows the settings once."""
+        if self.settings.value("welcomed", False, type=bool):
+            return
+        self.settings.setValue("welcomed", True)
+        if sys.platform.startswith("linux") and not integrations.is_installed():
+            integrations.install()
+        self.open_settings()
 
     # --- tray -------------------------------------------------------------------
 
@@ -260,19 +260,15 @@ class Mandarine(QObject):
         self.tray.setToolTip(APP_NAME)
         menu = QMenu()
         status = menu.addAction(
-            "Hold Shift while dragging a file" if self.watcher.available
-            else "Shift+drag is unavailable here: use Show Wheel")
+            tr("Hold Shift while dragging a file") if self.watcher.available
+            else tr("Shift+drag is unavailable here: use the bubble or Show Wheel"))
         status.setEnabled(False)
-        menu.addAction(icons.icon("logo"), "Show Wheel").triggered.connect(lambda: self.show_wheel(sticky=True))
-        menu.addAction(icons.icon("settings"), "Settings…").triggered.connect(self.open_settings)
+        menu.addAction(icons.icon("logo"), tr("Show Wheel")).triggered.connect(lambda: self.show_wheel(sticky=True))
+        menu.addAction(icons.icon("settings"), tr("Settings…")).triggered.connect(self.open_settings)
         menu.addSeparator()
-        tools = menu.addMenu(icons.icon("globe"), "Astral Tools")
-        for name, url, _blurb in TOOLS:
-            tools.addAction(name).triggered.connect(lambda _c=False, u=url: open_url(u))
-        tools.addSeparator()
-        tools.addAction("Mandarine on GitHub").triggered.connect(lambda: open_url(GITHUB))
+        menu.addAction(icons.icon("globe"), tr("Mandarine on GitHub")).triggered.connect(lambda: open_url(GITHUB))
         menu.addSeparator()
-        menu.addAction("Quit").triggered.connect(lambda: self.app.quit())
+        menu.addAction(tr("Quit")).triggered.connect(lambda: self.app.quit())
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(self._tray_activated)
         self._menu = menu
@@ -284,11 +280,20 @@ class Mandarine(QObject):
 
     # --- wheel ---------------------------------------------------------------------
 
-    def _on_shift_drag(self, pos: QPoint) -> None:
-        self.wheel.popup(pos)
+    def _on_shift_drag(self, pos: QPoint, ctrl: bool = False) -> None:
+        self.wheel.popup(pos, tools=ctrl)
+
+    def _on_bubble_drag(self, pos: QPoint, files: list[Path]) -> None:
+        self.wheel.popup(pos, dragging=files)
+
+    def wheel_pos(self) -> QPoint:
+        # Under XWayland the cursor position is stale outside our windows: use the screen centre.
+        if is_wayland():
+            return QGuiApplication.primaryScreen().availableGeometry().center()
+        return QCursor.pos()
 
     def show_wheel(self, sticky: bool = False, files: list[Path] | None = None) -> None:
-        self.wheel.popup(QCursor.pos(), sticky=sticky, files=files)
+        self.wheel.popup(self.wheel_pos(), sticky=sticky, files=files)
 
     def on_hotkey(self) -> None:
         self.show_wheel(sticky=True, files=selection.finder_selection() or None)
@@ -298,6 +303,8 @@ class Mandarine(QObject):
         if parts[0] == "wheel":
             files = [Path(p) for p in parts[1:] if p and ops.is_supported(Path(p))]
             self.show_wheel(sticky=True, files=files or None)
+        elif parts[0] == "settings":
+            self.open_settings()
 
     # --- actions ------------------------------------------------------------------
 
@@ -306,33 +313,43 @@ class Mandarine(QObject):
         QTimer.singleShot(0, lambda: self._run(key, files))
 
     def _run(self, key: str, files: list[Path]) -> None:
+        media = all(ops.kind(f) in MEDIA for f in files)
         if key == "merge":
             self._open_merge(files)
             return
-        if key in DIALOGS:
+        if key in DIALOGS and not media:
             for f in files:
                 self._open_dialog(key, f)
             return
-        if key == "convert":
+        if key.startswith("to:"):
+            target = key[3:]
+            title = tr("Converting to {}…", target.upper())
+
             def job(progress, f):
-                return ops.convert(f, self.convert_target(f), progress=progress)
-            title = f"Converting to {self.convert_target(files[0]).upper()}…"
+                return ops.convert(f, target, progress=progress)
         elif key == "compress":
             level = self.compress_level
+
             def job(progress, f):
-                return [ops.compress(f, level)]
-            title = "Compressing…"
+                return [ops.compress(f, level, progress)]
         elif key == "rotate":
             def job(progress, f):
-                return [ops.rotate(f, 90)]
-            title = "Rotating…"
+                return [ops.media.rotate(f, 90, progress) if ops.kind(f) == "video" else ops.rotate(f, 90)]
+        elif key == "mute":
+            def job(progress, f):
+                return [ops.media.mute(f, progress)]
+        elif key == "resize":
+            def job(progress, f):
+                return [ops.media.resize(f, 720, progress)]
+        elif key == "normalize":
+            def job(progress, f):
+                return [ops.media.normalize(f, progress)]
+        elif key == "metadata":
+            def job(progress, f):
+                return [ops.media.strip_metadata(f, progress)]
         else:
             return
-        self._start(key, title, files, job)
-
-    def convert_target(self, f: Path) -> str:
-        target = self.wheel.convert_target[ops.kind(f)]
-        return target if target in ops.targets_for(f) else ops.default_target(f)
+        self._start(key, title if key.startswith("to:") else tr(TITLES[key]), files, job)
 
     def _show_dialog(self, key: str, dlg, files: list[Path]) -> None:
         self._open_dialogs.append(dlg)
@@ -341,7 +358,7 @@ class Mandarine(QObject):
             self._open_dialogs.remove(dlg)
             if result and dlg.job:
                 job = dlg.job
-                self._start(key, f"{VERBS[key]}…", files[:1], lambda progress, _f: job())
+                self._start(key, tr(TITLES[key]), files[:1], lambda progress, _f: job())
             dlg.deleteLater()
 
         dlg.finished.connect(finished)
@@ -353,7 +370,7 @@ class Mandarine(QObject):
         try:
             dlg = DIALOGS[key](f)
         except Exception as e:
-            self.toast.show_message(f"Could not open {f.name}", str(e))
+            self.toast.show_message(tr("Could not open {}", f.name), str(e))
             return
         self._show_dialog(key, dlg, [f])
 
@@ -362,23 +379,30 @@ class Mandarine(QObject):
 
     def _start(self, key: str, title: str, files: list[Path], job) -> None:
         total = len(files)
-        self.toast.show_message(title, f"0 of {total} saved", sticky=True)
+        self.toast.show_message(title, tr("{} of {} saved", 0, total), sticky=True)
         outputs: list[Path] = []
         errors: list[str] = []
+        task: Task
 
         def run_all(progress):
             for i, f in enumerate(files):
+                def part(done: int, of: int, i=i) -> None:
+                    if of:
+                        task.signals.percent.emit(int((i + done / of) * 100 / total))
                 try:
-                    outputs.extend(job(lambda a, b: None, f))
+                    outputs.extend(job(part, f))
                 except Exception as e:
                     errors.append(f"{f.name}: {e}")
                 progress(i + 1, total)
             return outputs
 
         task = Task(run_all)
-        task.signals.progress.connect(lambda i, n: self.toast.show_message(title, f"{i} of {n} saved", sticky=True))
+        task.signals.progress.connect(
+            lambda i, n: self.toast.show_message(title, tr("{} of {} saved", i, n), sticky=True))
+        task.signals.percent.connect(
+            lambda pct: self.toast.show_message(title, tr("Working… {}%", min(pct, 99)), sticky=True))
         task.signals.done.connect(lambda outs: self._finish(key, title, files, outs, errors))
-        task.signals.failed.connect(lambda msg: self.toast.show_message("Something went wrong", msg))
+        task.signals.failed.connect(lambda msg: self.toast.show_message(tr("Something went wrong"), msg))
         self._tasks.append(task)  # keep the signals objects alive until done
         task.signals.done.connect(lambda _o: self._tasks.remove(task))
         task.signals.failed.connect(lambda _m: self._tasks.remove(task))
@@ -386,37 +410,48 @@ class Mandarine(QObject):
 
     def _finish(self, key: str, title: str, files: list[Path], outs: list[Path], errors: list[str]) -> None:
         if errors and not outs:
-            self.toast.show_message("Nothing saved", errors[0])
+            self.toast.show_message(tr("Nothing saved"), errors[0])
             return
-        detail = f"{len(outs)} file{'s' if len(outs) != 1 else ''} saved"
+        detail = tr("{} file saved" if len(outs) == 1 else "{} files saved", len(outs))
         if key == "compress" and len(files) == 1 and outs:
             before, after = files[0].stat().st_size, outs[0].stat().st_size
             saved = 100 - round(after * 100 / before) if before else 0
-            detail = f"{human_size(before)} → {human_size(after)}" + (f" (-{saved}%)" if saved > 0 else " (already optimal)")
+            detail = f"{human_size(before)} → {human_size(after)}" + (
+                f" (-{saved}%)" if saved > 0 else f" ({tr('already optimal')})")
         if errors:
-            detail += f", {len(errors)} failed"
-        self.toast.show_message(title.rstrip("…") + " done", detail, path=outs[0] if outs else None)
+            detail += tr(", {} failed", len(errors))
+        self.toast.show_message(tr("{} done", title.rstrip("…")), detail, path=outs[0] if outs else None)
+
+
+def prefer_xwayland() -> None:
+    """On Wayland, run through XWayland when it is there: only X11 lets a
+    window (the wheel, the bubble) pick its own position on screen."""
+    if is_wayland() and os.environ.get("DISPLAY") and not os.environ.get("QT_QPA_PLATFORM"):
+        os.environ["QT_QPA_PLATFORM"] = "xcb"
 
 
 def run_app(files: list[Path] | None = None) -> int:
-    message = "\t".join(["wheel", *map(str, files or [])])
+    message = "\t".join(["wheel", *map(str, files)]) if files else "settings"
     if send_to_running(message):
-        return 0  # already running: the second launch just opens the wheel
+        return 0  # already running: the second launch opens the wheel (or the settings)
+    prefer_xwayland()
     QApplication.setApplicationName(APP_NAME)
-    QApplication.setOrganizationName("AstralPDF")
+    QApplication.setOrganizationName("Mandarine")
     QApplication.setDesktopFileName(APP_ID)
     app = QApplication.instance() or QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setStyleSheet(QSS)
     app.setWindowIcon(tray_icon())
     if not QSystemTrayIcon.isSystemTrayAvailable():
-        print("mandarine: no system tray found; the wheel still works with `mandarine wheel`", file=sys.stderr)
+        print("mandarine: no system tray found; use the bubble or `mandarine wheel`", file=sys.stderr)
     core = Mandarine(app)
     server = Server(app)
     server.message.connect(core.on_message)
     server.listen()
     if files:
         QTimer.singleShot(300, lambda: core.on_message(message))
-    elif os.environ.get("MANDARINE_SHIFT_SHOW_WHEEL"):
+    elif os.environ.get("MANDARINE_SHOW_WHEEL"):
         QTimer.singleShot(300, lambda: core.show_wheel(sticky=True))
+    else:
+        QTimer.singleShot(600, core.first_run)
     return app.exec()

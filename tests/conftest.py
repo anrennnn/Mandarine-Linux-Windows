@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ["MANDARINE_LANG"] = "en"  # assertions use the English strings
 
 import pymupdf
 import pytest

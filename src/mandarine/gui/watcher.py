@@ -25,10 +25,12 @@ class State:
     button: bool  # primary button held
     shift: bool
     drag_token: int  # changes when a new drag starts somewhere
+    ctrl: bool = False  # Ctrl too: open the other ring
 
 
 class MacBackend:
     SHIFT = 1 << 17  # NSEventModifierFlagShift
+    CONTROL = 1 << 18  # NSEventModifierFlagControl
 
     def __init__(self) -> None:
         from AppKit import NSEvent, NSPasteboard  # type: ignore[import-not-found]
@@ -41,6 +43,7 @@ class MacBackend:
             bool(self._event.pressedMouseButtons() & 1),
             bool(self._event.modifierFlags() & self.SHIFT),
             int(self._board.changeCount()),
+            bool(self._event.modifierFlags() & self.CONTROL),
         )
 
     def drag_has_files(self) -> bool:
@@ -66,7 +69,8 @@ class X11Backend:
         if owner_id != self._seen_owner:
             self._seen_owner = owner_id
             self._token += 1
-        return State(bool(q.mask & self._X.Button1Mask), bool(q.mask & self._X.ShiftMask), self._token)
+        return State(bool(q.mask & self._X.Button1Mask), bool(q.mask & self._X.ShiftMask), self._token,
+                     bool(q.mask & self._X.ControlMask))
 
     # Some toolkits keep owning XdndSelection between drags, so a new drag does
     # not always change the owner: any owner counts, the drop handler filters.
@@ -88,10 +92,10 @@ def make_backend():
 
 
 class DragWatcher(QObject):
-    """Emits ``shift_drag(pos)`` once per drag when Shift joins a file drag,
+    """Emits ``shift_drag(pos, ctrl)`` once per drag when Shift joins a file drag,
     and ``released()`` when the mouse button comes back up."""
 
-    shift_drag = Signal(QPoint)
+    shift_drag = Signal(QPoint, bool)
     released = Signal()
 
     INTERVAL_MS = 30
@@ -132,7 +136,7 @@ class DragWatcher(QObject):
             new_drag = s.drag_token != self._press_token or getattr(self.backend, "loose", False)
             if s.shift and moved and new_drag and self.backend.drag_has_files():
                 self._fired = True
-                self.shift_drag.emit(pos)
+                self.shift_drag.emit(pos, s.ctrl)
         elif not s.button and self._was_down:
             if self._fired:
                 self.released.emit()

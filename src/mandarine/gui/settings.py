@@ -1,29 +1,18 @@
-"""Settings window and the Astral tools reminder."""
+"""Settings window."""
 from __future__ import annotations
-
-from datetime import datetime, timedelta
 
 from PySide6.QtCore import QSettings, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFrame, QGridLayout, QHBoxLayout, QKeySequenceEdit, QLabel, QPushButton, QVBoxLayout,
-    QWidget,
+    QCheckBox, QComboBox, QGridLayout, QHBoxLayout, QKeySequenceEdit, QLabel, QPushButton, QWidget,
 )
 
 from .. import __version__
-from . import hotkey
+from ..i18n import tr
+from . import desktop, hotkey
 from .glass import GlassDialog
 
-GITHUB = "https://github.com/jtaoufik/mandarine"
-
-TOOLS = [
-    ("AstralPDF", "https://astralpdf.com", "Merge, split, compress, unlock and watermark PDFs"),
-    ("AstralText", "https://astraltext.com", "Clean AI text, strip Markdown, fix spacing"),
-    ("AstralJSON", "https://astraljson.com", "Prettify, compare and validate JSON"),
-    ("AstralBatch", "https://astralbatch.com", "Batch image tools: backgrounds, formats, renaming"),
-]
-
-REMIND_EVERY = timedelta(days=60)
+GITHUB = "https://github.com/anrennnn/Mandarine-Linux-Windows"
 
 
 def open_url(url: str) -> None:
@@ -42,21 +31,21 @@ class SettingsDialog(GlassDialog):
     changed = Signal(str, object)  # settings key, new value
 
     def __init__(self, settings: QSettings, hotkey_status: str, wayland_hint: bool, parent: QWidget | None = None) -> None:
-        super().__init__("Mandarine Settings", parent)
+        super().__init__(tr("Mandarine Settings"), parent)
         self.settings = settings
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)
         grid.setVerticalSpacing(8)
         row = 0
 
-        grid.addWidget(_section("Shortcut"), row, 0, 1, 3)
+        grid.addWidget(_section(tr("Shortcut")), row, 0, 1, 3)
         row += 1
         self.shortcut = QKeySequenceEdit(QKeySequence(str(settings.value("hotkey", hotkey.DEFAULT))))
         self.shortcut.setMaximumSequenceLength(1)
         self.shortcut.editingFinished.connect(self._shortcut_done)
-        reset = QPushButton("Default")
+        reset = QPushButton(tr("Default"))
         reset.clicked.connect(self._shortcut_default)
-        grid.addWidget(QLabel("Open the wheel"), row, 0)
+        grid.addWidget(QLabel(tr("Open the wheel")), row, 0)
         grid.addWidget(self.shortcut, row, 1)
         grid.addWidget(reset, row, 2)
         row += 1
@@ -65,55 +54,67 @@ class SettingsDialog(GlassDialog):
         self.shortcut_status.setWordWrap(True)
         grid.addWidget(self.shortcut_status, row, 0, 1, 3)
         row += 1
+        self.gnome_button: QPushButton | None = None
         if wayland_hint:
-            hint = QLabel("On Wayland, add a shortcut in your desktop's keyboard settings that runs: mandarine wheel")
+            hint = QLabel(tr("On Wayland, apps cannot watch global drags or keys. Use the floating bubble, or add a "
+                             "shortcut in your desktop's keyboard settings that runs: mandarine wheel"))
             hint.setObjectName("Muted")
             hint.setWordWrap(True)
             hint.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             grid.addWidget(hint, row, 0, 1, 3)
             row += 1
+            if desktop.can_add_gnome_shortcut():
+                self.gnome_button = QPushButton(tr("Set up the shortcut in GNOME"))
+                self.gnome_button.clicked.connect(self._gnome_shortcut)
+                grid.addWidget(self.gnome_button, row, 0, 1, 3)
+                row += 1
 
-        grid.addWidget(_section("Behaviour"), row, 0, 1, 3)
+        grid.addWidget(_section(tr("Behaviour")), row, 0, 1, 3)
         row += 1
         self.checks: dict[str, QCheckBox] = {}
         for key, label, default in [
             ("enabled", "Show the wheel when I hold Shift while dragging a file", True),
-            ("context_menu", "Add Mandarine to the right-click menu", False),
+            ("bubble", "Show the floating bubble (drop files on it; works on Wayland)", wayland_hint),
+            ("context_menu", "Add Mandarine to the file manager's right-click menu", False),
             ("login", "Open at login", False),
-            ("tips", "Show Astral tools tips every 2 months", True),
         ]:
-            box = QCheckBox(label)
+            box = QCheckBox(tr(label))
             box.setChecked(settings.value(key, default, type=bool))
             box.toggled.connect(lambda v, k=key: self._emit(k, v))
             grid.addWidget(box, row, 0, 1, 3)
             self.checks[key] = box
             row += 1
+        tools_first = QCheckBox(tr("Open the tools ring first (Ctrl+Shift opens the other one)"))
+        tools_first.setChecked(str(settings.value("wheel/first", "formats")) == "tools")
+        tools_first.toggled.connect(lambda v: self._emit("wheel/first", "tools" if v else "formats"))
+        grid.addWidget(tools_first, row, 0, 1, 3)
+        self.checks["wheel/first"] = tools_first
+        row += 1
 
-        grid.addWidget(_section("Defaults"), row, 0, 1, 3)
+        grid.addWidget(_section(tr("Defaults")), row, 0, 1, 3)
         row += 1
         self.combos: dict[str, QComboBox] = {}
         for key, label, options, default in [
-            ("convert/pdf", "PDFs convert to", [("jpg", "JPG"), ("png", "PNG"), ("webp", "WebP")], "jpg"),
-            ("convert/image", "Images convert to", [("pdf", "PDF"), ("png", "PNG"), ("jpg", "JPG"), ("webp", "WebP")], "pdf"),
             ("compress/level", "Compression", [("low", "Light (best quality)"), ("medium", "Balanced"),
                                                ("high", "Strong (smallest)")], "medium"),
         ]:
             combo = QComboBox()
             for value, text in options:
-                combo.addItem(text, value)
+                combo.addItem(tr(text), value)
             combo.setCurrentIndex(max(0, combo.findData(str(settings.value(key, default)))))
             combo.currentIndexChanged.connect(lambda _i, k=key, c=combo: self._emit(k, c.currentData()))
-            grid.addWidget(QLabel(label), row, 0)
+            grid.addWidget(QLabel(tr(label)), row, 0)
             grid.addWidget(combo, row, 1, 1, 2)
             self.combos[key] = combo
             row += 1
         self.layout_.addLayout(grid)
 
-        about = QLabel(f"Mandarine {__version__} · free and open source (AGPL-3.0)")
+        about = QLabel(tr("Mandarine {} · free and open source (AGPL-3.0) · based on Astral Shift", __version__))
         about.setObjectName("Muted")
+        about.setWordWrap(True)
         github = QPushButton("GitHub")
         github.clicked.connect(lambda: open_url(GITHUB))
-        done = QPushButton("Done")
+        done = QPushButton(tr("Done"))
         done.setObjectName("Primary")
         done.clicked.connect(self.accept)
         foot = QHBoxLayout()
@@ -121,7 +122,7 @@ class SettingsDialog(GlassDialog):
         foot.addWidget(github)
         foot.addWidget(done)
         self.layout_.addLayout(foot)
-        self.resize(520, 0)
+        self.resize(540, 0)
 
     def _emit(self, key: str, value) -> None:
         self.settings.setValue(key, value)
@@ -134,61 +135,13 @@ class SettingsDialog(GlassDialog):
         self.shortcut.setKeySequence(QKeySequence(hotkey.DEFAULT))
         self._shortcut_done()
 
+    def _gnome_shortcut(self) -> None:
+        text = self.shortcut.keySequence().toString(QKeySequence.SequenceFormat.PortableText) or hotkey.DEFAULT
+        try:
+            desktop.add_gnome_shortcut(text)
+            self.set_shortcut_status(tr("Shortcut added to GNOME: {}", text))
+        except Exception as e:  # gsettings refused: say why
+            self.set_shortcut_status(str(e))
+
     def set_shortcut_status(self, text: str) -> None:
         self.shortcut_status.setText(text)
-
-
-class ToolsDialog(GlassDialog):
-    """The every-two-months reminder of the other free Astral tools."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__("More free Astral tools", parent)
-        intro = QLabel("Mandarine is free. These sister tools are too, and they run in your browser.")
-        intro.setObjectName("Muted")
-        intro.setWordWrap(True)
-        self.layout_.addWidget(intro)
-        for name, url, blurb in TOOLS:
-            card = QFrame()
-            card.setObjectName("Card")
-            lay = QHBoxLayout(card)
-            lay.setContentsMargins(12, 8, 8, 8)
-            text = QVBoxLayout()
-            title = QLabel(name)
-            title.setStyleSheet("font-weight: 600;")
-            sub = QLabel(blurb)
-            sub.setObjectName("Muted")
-            text.addWidget(title)
-            text.addWidget(sub)
-            lay.addLayout(text, 1)
-            go = QPushButton("Open")
-            go.clicked.connect(lambda _c=False, u=url: open_url(u))
-            lay.addWidget(go)
-            self.layout_.addWidget(card)
-        star = QPushButton("Star Mandarine on GitHub")
-        star.clicked.connect(lambda: open_url(GITHUB))
-        close = QPushButton("Close")
-        close.setObjectName("Primary")
-        close.clicked.connect(self.accept)
-        foot = QHBoxLayout()
-        foot.addWidget(star)
-        foot.addStretch(1)
-        foot.addWidget(close)
-        self.layout_.addLayout(foot)
-        self.resize(460, 0)
-
-
-def tips_due(settings: QSettings, now: datetime | None = None) -> bool:
-    """Every 60 days, counted from the first run (never on day one)."""
-    now = now or datetime.now()
-    if not settings.value("tips", True, type=bool):
-        return False
-    first = settings.value("tips/first_run")
-    if not first:
-        settings.setValue("tips/first_run", now.isoformat())
-        return False
-    last = settings.value("tips/last_shown") or first
-    return now - datetime.fromisoformat(str(last)) >= REMIND_EVERY
-
-
-def mark_tips_shown(settings: QSettings, now: datetime | None = None) -> None:
-    settings.setValue("tips/last_shown", (now or datetime.now()).isoformat())

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import ops
+from ..i18n import tr
 from . import icons
 from .canvas import Document, PageCanvas, pil_to_qimage
 from .glass import GlassDialog
@@ -42,7 +43,7 @@ def _chips(labels: list[str], checked: int = 0) -> tuple[QHBoxLayout, QButtonGro
     group.setExclusive(True)
     buttons = []
     for i, label in enumerate(labels):
-        b = QPushButton(label)
+        b = QPushButton(tr(label))
         b.setObjectName("Chip")
         b.setCheckable(True)
         b.setChecked(i == checked)
@@ -64,22 +65,22 @@ class Base(GlassDialog):
     title = ""
 
     def __init__(self, path: Path, parent: QWidget | None = None) -> None:
-        super().__init__(self.title, parent)
+        super().__init__(tr(self.title), parent)
         self.path = Path(path)
         self.job: Job | None = None
-        self.setWindowTitle(f"{self.title}: {self.path.name}")
+        self.setWindowTitle(f"{tr(self.title)}: {self.path.name}")
 
     def footer(self, primary: str, on_primary, reset=None) -> QPushButton:
-        go = QPushButton(primary)
+        go = QPushButton(tr(primary))
         go.setObjectName("Primary")
         go.clicked.connect(on_primary)
         go.setDefault(True)
         widgets = []
         if reset:
-            r = QPushButton("Reset")
+            r = QPushButton(tr("Reset"))
             r.clicked.connect(reset)
             widgets.append(r)
-        cancel = QPushButton("Cancel")
+        cancel = QPushButton(tr("Cancel"))
         cancel.clicked.connect(self.reject)
         widgets += [cancel, None, go]
         self.layout_.addLayout(_row(*widgets))
@@ -131,7 +132,7 @@ class PagedDialog(Base):
         else:
             self.canvas.boxes = items
         self.canvas.set_image(self.doc.page(i))
-        self.page_label.setText(f"Page {i + 1} of {self.doc.count}")
+        self.page_label.setText(tr("Page {} of {}", i + 1, self.doc.count))
         self.prev.setEnabled(i > 0)
         self.next.setEnabled(i < self.doc.count - 1)
 
@@ -156,7 +157,7 @@ class CropDialog(Base):
         self.layout_.addWidget(self.canvas, 1)
         chips, self.ratio_group, _ = _chips([r[0] for r in self.RATIOS])
         self.ratio_group.idClicked.connect(lambda i: self.canvas.set_aspect(self.RATIOS[i][1]))
-        label = QLabel("Aspect ratio")
+        label = QLabel(tr("Aspect ratio"))
         label.setObjectName("Muted")
         self.layout_.addLayout(_row(label, chips, None))
         self.size_label = QLabel()
@@ -220,7 +221,7 @@ class BackgroundDialog(Base):
         swatches.addStretch(1)
         self.swatch_group.idClicked.connect(self._pick_preset)
         self._labels = {}
-        grid.addWidget(QLabel("Background"), 0, 0)
+        grid.addWidget(QLabel(tr("Background")), 0, 0)
         grid.addLayout(swatches, 0, 1, 1, 2)
         self.padding = _slider(0, 40, 12)
         self.corners = _slider(0, 20, 3)
@@ -228,7 +229,7 @@ class BackgroundDialog(Base):
         for row, (name, s, fmt) in enumerate(
             [("Padding", self.padding, "{}%"), ("Corners", self.corners, "{}%"), ("Shadow", self.shadow, "{}%")], 1
         ):
-            grid.addWidget(QLabel(name), row, 0)
+            grid.addWidget(QLabel(tr(name)), row, 0)
             grid.addWidget(s, row, 1)
             value = QLabel(fmt.format(s.value()))
             value.setObjectName("Muted")
@@ -238,7 +239,7 @@ class BackgroundDialog(Base):
             s.valueChanged.connect(partial(self._slid, name))
         chips, self.ratio_group, _ = _chips(list(ops.RATIOS))
         self.ratio_group.idClicked.connect(lambda _i: self._schedule())
-        grid.addWidget(QLabel("Ratio"), 4, 0)
+        grid.addWidget(QLabel(tr("Ratio")), 4, 0)
         grid.addLayout(_row(chips, None), 4, 1, 1, 2)
         self.layout_.addLayout(grid)
         self.footer("Save with Background", self._apply, reset=self._reset)
@@ -301,12 +302,12 @@ class RedactDialog(PagedDialog):
 
     def __init__(self, path: Path, parent: QWidget | None = None) -> None:
         super().__init__(path, parent)
-        hint = QLabel("Drag over anything to hide it." + (" Text under the boxes is removed from the PDF."
+        hint = QLabel(tr("Drag over anything to hide it.") + (tr(" Text under the boxes is removed from the PDF.")
                                                           if self.doc.kind == "pdf" else ""))
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         self.layout_.insertWidget(1, hint)
-        undo = QPushButton(icons.icon("undo"), " Undo")
+        undo = QPushButton(icons.icon("undo"), f" {tr('Undo')}")
         undo.clicked.connect(self.canvas.undo)
         self.layout_.addLayout(_row(undo, None))
         self.go_btn = self.footer("Redact", self._apply)
@@ -340,7 +341,7 @@ class AnnotateDialog(PagedDialog):
         tools.setSpacing(4)
         self.tool_group = QButtonGroup(self)
         for i, (key, label) in enumerate(self.TOOLS):
-            b = QPushButton(icons.icon(key), f" {label}")
+            b = QPushButton(icons.icon(key), f" {tr(label)}")
             b.setObjectName("Chip")
             b.setCheckable(True)
             b.setChecked(i == 0)
@@ -360,7 +361,7 @@ class AnnotateDialog(PagedDialog):
             colors.addWidget(b)
         self.color_group.idClicked.connect(lambda i: setattr(self.canvas, "color", self.COLORS[i]))
         self.layout_.insertLayout(1, _row(tools, None, colors))
-        undo = QPushButton(icons.icon("undo"), " Undo")
+        undo = QPushButton(icons.icon("undo"), f" {tr('Undo')}")
         undo.clicked.connect(self.canvas.undo)
         self.layout_.addLayout(_row(undo, None))
         self.canvas.text_requested.connect(self._add_text)
@@ -405,11 +406,11 @@ class EditDialog(Base):
         self.preview.setMinimumSize(420, 340)
         self.layout_.addWidget(self.preview, 1)
 
-        rot_l = QPushButton(icons.icon("rotate"), " Rotate")
+        rot_l = QPushButton(icons.icon("rotate"), f" {tr('Rotate')}")
         rot_l.clicked.connect(lambda: self._set(rotate=(self.adj.rotate + 90) % 360))
-        flip_h = QPushButton(icons.icon("flip_h"), " Flip H")
+        flip_h = QPushButton(icons.icon("flip_h"), f" {tr('Flip H')}")
         flip_h.clicked.connect(lambda: self._set(flip_h=not self.adj.flip_h))
-        flip_v = QPushButton(icons.icon("flip_v"), " Flip V")
+        flip_v = QPushButton(icons.icon("flip_v"), f" {tr('Flip V')}")
         flip_v.clicked.connect(lambda: self._set(flip_v=not self.adj.flip_v))
         self.layout_.addLayout(_row(None, rot_l, flip_h, flip_v, None))
 
@@ -426,11 +427,11 @@ class EditDialog(Base):
             value.setObjectName("Muted")
             value.setMinimumWidth(44)
             s.valueChanged.connect(lambda v, k=key, l=value: (l.setText(f"{v}%"), self._set(**{k: v / 100})))
-            grid.addWidget(QLabel(label), row, 0)
+            grid.addWidget(QLabel(tr(label)), row, 0)
             grid.addWidget(s, row, 1)
             grid.addWidget(value, row, 2)
             self.sliders[key] = s
-        self.gray = QCheckBox("Black and white")
+        self.gray = QCheckBox(tr("Black and white"))
         self.gray.toggled.connect(lambda v: self._set(grayscale=v))
         grid.addWidget(self.gray, 4, 1)
         holder = QWidget()
@@ -441,10 +442,10 @@ class EditDialog(Base):
             holder.setEnabled(False)
             flip_h.setEnabled(False)
             flip_v.setEnabled(False)
-            note = QLabel("PDF pages stay sharp: only rotation applies to PDFs.")
+            note = QLabel(tr("PDF pages stay sharp: only rotation applies to PDFs."))
             note.setObjectName("Muted")
             self.layout_.addWidget(note)
-            self.split_btn = QPushButton("Split into Pages")
+            self.split_btn = QPushButton(tr("Split into Pages"))
             self.split_btn.clicked.connect(lambda: self.done_with(lambda: ops.split(self.path)))
             self.split_btn.setEnabled(Document(self.path).count > 1)
             self.layout_.addLayout(_row(None, self.split_btn, None))
@@ -493,7 +494,7 @@ class MetadataDialog(Base):
         super().__init__(path, parent)
         meta = ops.read_metadata(self.path)
         table = QTableWidget(len(meta), 2)
-        table.setHorizontalHeaderLabels(["Field", "Value"])
+        table.setHorizontalHeaderLabels([tr("Field"), tr("Value")])
         table.verticalHeader().hide()
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         table.horizontalHeader().setStretchLastSection(True)
@@ -502,7 +503,7 @@ class MetadataDialog(Base):
             table.setItem(i, 0, QTableWidgetItem(k))
             table.setItem(i, 1, QTableWidgetItem(v))
         self.layout_.addWidget(table, 1)
-        note = QLabel("Saving a clean copy removes author, software, GPS, dates and XMP. The original is kept.")
+        note = QLabel(tr("Saving a clean copy removes author, software, GPS, dates and XMP. The original is kept."))
         note.setObjectName("Muted")
         note.setWordWrap(True)
         self.layout_.addWidget(note)
@@ -516,10 +517,10 @@ class MergeDialog(GlassDialog):
     """Order the dropped files, then join them into one PDF."""
 
     def __init__(self, files: list[Path], parent: QWidget | None = None) -> None:
-        super().__init__("Merge into PDF", parent)
+        super().__init__(tr("Merge into PDF"), parent)
         self.files = [Path(f) for f in files]
         self.job: Job | None = None
-        hint = QLabel("Drag to reorder. PDFs and images become one PDF, in this order.")
+        hint = QLabel(tr("Drag to reorder. PDFs and images become one PDF, in this order."))
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
         self.layout_.addWidget(hint)
@@ -532,15 +533,15 @@ class MergeDialog(GlassDialog):
             self.list.addItem(item)
         self.list.setCurrentRow(0)
         self.layout_.addWidget(self.list, 1)
-        up = QPushButton("Move Up")
+        up = QPushButton(tr("Move Up"))
         up.clicked.connect(lambda: self._move(-1))
-        down = QPushButton("Move Down")
+        down = QPushButton(tr("Move Down"))
         down.clicked.connect(lambda: self._move(1))
         self.layout_.addLayout(_row(up, down, None))
-        go = QPushButton("Merge")
+        go = QPushButton(tr("Merge"))
         go.setObjectName("Primary")
         go.clicked.connect(self._apply)
-        cancel = QPushButton("Cancel")
+        cancel = QPushButton(tr("Cancel"))
         cancel.clicked.connect(self.reject)
         self.layout_.addLayout(_row(cancel, None, go))
         self.resize(460, 460)

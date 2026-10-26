@@ -18,8 +18,8 @@ def mime(*paths):
     return md
 
 
-def at_wedge(i, r=(Wh.OUTER + Wh.INNER) / 2):
-    a = math.radians(i * 45)
+def at_wedge(i, n=None, r=(Wh.OUTER + Wh.INNER) / 2):
+    a = math.radians(i * 360 / (n or len(Wh.RING)))
     return QPointF(C.x() + r * math.sin(a), C.y() - r * math.cos(a))
 
 
@@ -50,46 +50,133 @@ def mouse(kind, pos, buttons=Qt.MouseButton.LeftButton):
 # --- wheel --------------------------------------------------------------------------
 
 def test_hit_test_every_slot():
-    assert Wh.hit_test(C, C) == Wh.CENTER
-    assert Wh.hit_test(QPointF(0, 0), C) is None
-    for i, action in enumerate(Wh.RING):
-        assert Wh.hit_test(at_wedge(i), C) == action
+    assert Wh.hit_test(C, C, Wh.RING, Wh.CENTER) == Wh.CENTER
+    assert Wh.hit_test(QPointF(0, 0), C, Wh.RING, Wh.CENTER) is None
+    assert Wh.hit_test(at_wedge(0), C, [], None) is None
+    for ring in (Wh.RING, Wh.VIDEO_RING, Wh.AUDIO_RING):
+        for i, action in enumerate(ring):
+            assert Wh.hit_test(at_wedge(i, len(ring)), C, ring, None) == action
+
+
+def test_rings_per_kind(tmp_path, pdf, jpg):
+    clip, song, doc = tmp_path / "clip.mp4", tmp_path / "song.wav", tmp_path / "notes.docx"
+    assert [a.key for a in Wh.format_ring([pdf])][:4] == ["to:docx", "to:jpg", "to:png", "to:txt"]
+    assert Wh.fmt("docx").target == "docx" and Wh.CENTER.target is None
+    assert Wh.tool_ring([pdf, jpg]) == Wh.RING
+    assert Wh.tool_ring([clip]) == Wh.VIDEO_RING
+    assert Wh.tool_ring([clip, song]) == Wh.AUDIO_RING
+    assert Wh.tool_ring([doc]) == []
+    assert Wh.center_for("formats", [pdf]) == Wh.TOOLS
+    assert Wh.center_for("formats", [doc]) is None
+    assert Wh.center_for("tools", [jpg]) == Wh.CENTER
+    assert Wh.center_for("tools", [pdf, jpg]) == Wh.MERGE
+    assert Wh.center_for("tools", [clip]) == Wh.FORMATS
+    assert Wh.center_for("tools", []) is None and Wh.ring_for("formats", []) == []
+    assert Wh.human_size(10) == "10 B" and Wh.human_size(2048) == "2.0 KB"
 
 
 def test_drag_hover_and_drop(qtbot, pdf, jpg, tmp_path):
     w = Wh.Wheel()
     qtbot.addWidget(w)
     w.popup(QPoint(5, 5))  # clamped onto the screen
-    assert w.isVisible()
+    assert w.isVisible() and w.mode == "formats"
+    w.grab()  # files not known yet: the empty ring
     for _ in range(12):
         w._step_fade()
     assert not w._fade.isActive()
 
     md = mime(pdf, jpg)
     assert drag_enter(w, md).isAccepted()
-    e = drag_move(w, md, at_wedge(3))  # convert
-    assert e.isAccepted() and w.hover.key == "convert"
-    assert w.hint == "Page 001.jpg +1"
+    assert [a.target for a in w.ring] == ["png", "txt", "webp"]  # what both files convert to
+    e = drag_move(w, md, at_wedge(0, 3))
+    assert e.isAccepted() and w.hover.key == "to:png"
+    assert w.hint == "Page 001.png +1"
     w.grab()  # paints the highlighted wedge and the pill
-    drag_move(w, md, at_wedge(3))  # same wedge: no repaint needed
+    drag_move(w, md, at_wedge(0, 3))  # same wedge: no repaint needed
     assert not drag_move(w, md, QPointF(1, 1)).isAccepted()
     w.dragLeaveEvent(None)
     assert w.hover is None and w.hint == ""
 
     got = []
     w.dropped.connect(lambda key, files: got.append((key, files)))
-    drop(w, md, C)
-    assert got == [("merge", [pdf, jpg])]  # two files: the centre merges
+    drop(w, md, at_wedge(0, 3))
+    assert got == [("to:png", [pdf, jpg])]
     assert not w.isVisible()
+
+
+def test_resting_on_the_centre_switches_rings(qtbot, pdf):
+    w = Wh.Wheel()
+    qtbot.addWidget(w)
+    w.popup(QPoint(400, 400))
+    md = mime(pdf)
+    drag_enter(w, md)
+    drag_move(w, md, C)
+    assert w.hover == Wh.TOOLS
+    w.grab()
+    qtbot.waitUntil(lambda: w.mode == "tools", timeout=2000)
+    assert w.ring == Wh.RING
+    drag_move(w, md, C)
+    assert w.hover == Wh.CENTER
+    w.set_mode("tools")  # no change
+    w.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Tab, Qt.KeyboardModifier.NoModifier))
+    assert w.mode == "formats"
+    # Dropping on the switch before it flips keeps the wheel open for a click.
+    got = []
+    w.dropped.connect(lambda key, files: got.append(key))
+    drag_move(w, md, C)
+    drop(w, md, C)
+    assert w.isVisible() and w.mode == "tools" and w._sticky and got == []
+    w.mousePressEvent(mouse("press", at_wedge(0)))
+    assert got == ["compress"]
+
+
+def test_media_tools_ring_switches_back(qtbot, tmp_path):
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"x")
+    w = Wh.Wheel()
+    qtbot.addWidget(w)
+    w.popup(QPoint(400, 400), files=[clip], tools=True)
+    assert w.mode == "tools" and w.centre == Wh.FORMATS
+    w.grab()
+    w.mousePressEvent(mouse("press", C))
+    assert w.mode == "formats"
+    w.mousePressEvent(mouse("press", C))
+    assert w.mode == "tools"
+
+
+def test_documents_have_formats_only(qtbot, tmp_path):
+    doc = tmp_path / "notes.docx"
+    doc.write_bytes(b"x")
+    w = Wh.Wheel()
+    qtbot.addWidget(w)
+    w.first_mode = "tools"
+    w.popup(QPoint(400, 400), files=[doc])
+    assert w.mode == "formats" and w.centre is None
+    w.grab()  # centre shows only the size
+    w.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Tab, Qt.KeyboardModifier.NoModifier))
+    assert w.mode == "formats"
+
+
+def test_bubble_drag_closes_when_it_leaves(qtbot, jpg):
+    w = Wh.Wheel()
+    qtbot.addWidget(w)
+    w.popup(QPoint(400, 400), dragging=[jpg])
+    assert w.files == [jpg] and not w._sticky
+    drag_enter(w, mime(jpg))
+    w.dragLeaveEvent(None)
+    drag_enter(w, mime(jpg))  # came back in time: stays
+    qtbot.wait(500)
+    assert w.isVisible()
+    w.dragLeaveEvent(None)
+    qtbot.waitUntil(lambda: not w.isVisible(), timeout=2000)
 
 
 def test_hint_variants(qtbot, jpg, png):
     w = Wh.Wheel()
     qtbot.addWidget(w)
     assert w._hint_for(Wh.RING[0]) == ""
-    w._files = [jpg]
-    w.convert_target["image"] = "jpg"  # the file's own format: fall back to the default
-    assert w._hint_for(Wh.RING[3]) == "Photo.pdf"
+    w.set_files([jpg])
+    assert w._hint_for(Wh.fmt("pdf")) == "Photo.pdf"
     assert w._hint_for(Wh.RING[0]) == "Photo.jpg"
     assert w._hint_for(None) == ""
 
@@ -292,6 +379,7 @@ def test_draw_mode_every_tool(canvas):
 def test_merge_centre_when_several_files(qtbot, pdf, png):
     w = Wh.Wheel()
     qtbot.addWidget(w)
+    w.popup(QPoint(400, 400), tools=True)
     md = mime(pdf, png)
     drag_enter(w, md)
     drag_move(w, md, C)
@@ -308,6 +396,7 @@ def test_click_mode_with_preset_files(qtbot, jpg):
     qtbot.addWidget(w)
     got = []
     w.dropped.connect(lambda key, files: got.append((key, files)))
+    w.first_mode = "tools"
     w.popup(QPoint(400, 400), files=[jpg])
     assert w._sticky and w._preset
     w.mouseMoveEvent(mouse("move", at_wedge(0), Qt.MouseButton.NoButton))

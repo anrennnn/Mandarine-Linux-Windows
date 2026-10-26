@@ -2,7 +2,6 @@ import plistlib
 import subprocess
 import sys
 import types
-from datetime import datetime, timedelta
 
 import pytest
 from PySide6.QtCore import QSettings
@@ -15,6 +14,8 @@ from mandarine.gui import glass, integrations, selection, settings as S
 def home(tmp_path, monkeypatch):
     monkeypatch.setattr(integrations.Path, "home", classmethod(lambda cls: tmp_path))
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("MANDARINE_LAUNCHER", raising=False)
     monkeypatch.delattr(sys, "frozen", raising=False)
     calls = []
     monkeypatch.setattr(integrations.subprocess, "run", lambda *a, **k: calls.append(a[0]))
@@ -22,6 +23,9 @@ def home(tmp_path, monkeypatch):
 
 
 def test_wheel_command(monkeypatch):
+    monkeypatch.setenv("MANDARINE_LAUNCHER", "/usr/bin/mandarine")
+    assert integrations.wheel_command() == ["/usr/bin/mandarine", "wheel"]
+    monkeypatch.delenv("MANDARINE_LAUNCHER")
     monkeypatch.delattr(sys, "frozen", raising=False)
     assert integrations.wheel_command()[-3:] == ["-m", "mandarine", "wheel"]
     monkeypatch.setattr(sys, "frozen", True, raising=False)
@@ -50,13 +54,36 @@ def test_linux_file_managers(home, monkeypatch):
     tmp, calls = home
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp / "data"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp / "config"))
     integrations.set_installed(True)
-    nautilus, dolphin, nemo = integrations.entry_paths()
+    nautilus, dolphin, nemo, caja, fma = integrations.entry_paths()
     assert nautilus.read_text().startswith("#!/bin/sh") and nautilus.stat().st_mode & 0o111
-    assert "Exec=" in dolphin.read_text() and "%F" in dolphin.read_text()
-    assert "Selection=notnone" in nemo.read_text()
+    assert caja.read_text() == nautilus.read_text() and caja.parent.name == "scripts"
+    assert "Exec=" in dolphin.read_text() and "%F" in dolphin.read_text() and "video/mp4" in dolphin.read_text()
+    assert "Selection=notnone" in nemo.read_text() and "docx" in nemo.read_text()
+    assert "Type=Action" in fma.read_text()
+    uca = integrations.thunar_file().read_text()
+    assert uca.count(integrations.THUNAR_ID) == 1 and "*.mp4" in uca and uca.rstrip().endswith("</actions>")
+    integrations.install()  # again: replaced, not duplicated
+    assert integrations.thunar_file().read_text().count(integrations.THUNAR_ID) == 1
     integrations.uninstall()
     assert not integrations.is_installed() and calls == []
+    assert "<actions>" in integrations.thunar_file().read_text()
+
+
+def test_thunar_keeps_other_actions(home, monkeypatch):
+    tmp, _ = home
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp / "config"))
+    uca = integrations.thunar_file()
+    uca.parent.mkdir(parents=True)
+    other = "<action>\n<name>Open Terminal</name>\n<unique-id>1-1</unique-id>\n</action>\n"
+    uca.write_text(f'<?xml version="1.0"?>\n<actions>\n{other}</actions>\n')
+    integrations.thunar_install("mandarine wheel")
+    assert "Open Terminal" in uca.read_text() and integrations._thunar_has_action()
+    integrations.thunar_uninstall()
+    assert uca.read_text() == f'<?xml version="1.0"?>\n<actions>\n{other}</actions>\n'
+    integrations.thunar_uninstall()  # nothing to remove
 
 
 def test_refresh_services_tolerates_errors(monkeypatch):
@@ -184,21 +211,6 @@ def test_glass_dialog_moves_and_blurs(qtbot, monkeypatch):
 
 # --- settings helpers ------------------------------------------------------------------------
 
-def test_tips_schedule(tmp_path):
-    s = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
-    day0 = datetime(2026, 1, 1)
-    assert not S.tips_due(s, day0)  # first run only records the date
-    assert not S.tips_due(s, day0 + timedelta(days=59))
-    assert S.tips_due(s, day0 + timedelta(days=60))
-    S.mark_tips_shown(s, day0 + timedelta(days=60))
-    assert not S.tips_due(s, day0 + timedelta(days=100))
-    assert S.tips_due(s, day0 + timedelta(days=120))
-    s.setValue("tips", False)
-    assert not S.tips_due(s, day0 + timedelta(days=500))
-    S.mark_tips_shown(s)
-    assert S.tips_due(QSettings(str(tmp_path / "u.ini"), QSettings.Format.IniFormat)) is False
-
-
 def test_settings_dialog_bits(qtbot, tmp_path, monkeypatch):
     opened = []
     monkeypatch.setattr(S, "open_url", opened.append)
@@ -210,16 +222,28 @@ def test_settings_dialog_bits(qtbot, tmp_path, monkeypatch):
     assert s.value("hotkey") == S.hotkey.DEFAULT
     buttons = {b.text(): b for b in d.findChildren(S.QPushButton)}
     buttons["GitHub"].click()
-    t = S.ToolsDialog()
-    qtbot.addWidget(t)
-    for b in t.findChildren(S.QPushButton):
-        if b.text() in ("Open", "Star Mandarine on GitHub"):
-            b.click()
-    assert opened == [S.GITHUB] + [u for _, u, _ in S.TOOLS] + [S.GITHUB]
+    assert opened == [S.GITHUB]
+
+
+def test_settings_gnome_shortcut_button(qtbot, tmp_path, monkeypatch):
+    monkeypatch.setattr(S.desktop, "can_add_gnome_shortcut", lambda: True)
+    added = []
+    monkeypatch.setattr(S.desktop, "add_gnome_shortcut", added.append)
+    s = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
+    d = S.SettingsDialog(s, "status", wayland_hint=True)
+    qtbot.addWidget(d)
+    d.gnome_button.click()
+    assert added == [S.hotkey.DEFAULT] and "GNOME" in d.shortcut_status.text()
+
+    def refuse(text):
+        raise RuntimeError("no schema")
+    monkeypatch.setattr(S.desktop, "add_gnome_shortcut", refuse)
+    d.gnome_button.click()
+    assert d.shortcut_status.text() == "no schema"
 
 
 def test_open_url(monkeypatch):
     got = []
     monkeypatch.setattr(S.QDesktopServices, "openUrl", lambda u: got.append(u.toString()))
-    S.open_url("https://astralpdf.com")
-    assert got == ["https://astralpdf.com"]
+    S.open_url("https://example.com")
+    assert got == ["https://example.com"]

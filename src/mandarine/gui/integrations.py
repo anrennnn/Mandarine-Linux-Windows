@@ -1,7 +1,9 @@
 """Right-click menu entries in the file manager.
 
 * macOS: a Finder Quick Action, "Mandarine", in ~/Library/Services.
-* Linux: a Nautilus script, a Dolphin service menu and a Nemo action.
+* Linux: a Nautilus script, a Dolphin service menu, a Nemo action, a Caja
+  script, a Thunar custom action and a PCManFM (file-manager-actions) entry,
+  so it shows up on GNOME, KDE, Cinnamon, MATE, XFCE and LXQt alike.
 
 Each entry runs ``mandarine wheel <files>``, which opens the wheel with
 the selected files in the running app (or starts it).
@@ -10,11 +12,14 @@ from __future__ import annotations
 
 import os
 import plistlib
+import re
 import shlex
 import subprocess
 import sys
 from pathlib import Path
+from xml.sax.saxutils import escape
 
+from .. import ops
 from . import autostart
 
 MENU_TITLE = "Mandarine"
@@ -32,6 +37,34 @@ def _data_home() -> Path:
     return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
 
 
+def _config_home() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+
+
+def thunar_file() -> Path:
+    return _config_home() / "Thunar" / "uca.xml"
+
+
+THUNAR_ID = "mandarine-wheel"
+
+# Every file kind the wheel takes, for the menus that filter by type.
+EXTENSIONS = sorted(e.lstrip(".") for exts in ops.files.KINDS.values() for e in exts)
+MIME_TYPES = [
+    "application/pdf", "image/png", "image/jpeg", "image/webp", "image/bmp", "image/tiff", "image/gif",
+    "image/heic", "image/heif", "image/avif", "image/vnd.microsoft.icon",
+    "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.oasis.opendocument.text", "application/rtf", "text/plain", "text/markdown", "text/html",
+    "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.oasis.opendocument.spreadsheet", "text/csv",
+    "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.oasis.opendocument.presentation",
+    "video/mp4", "video/quicktime", "video/x-matroska", "video/webm", "video/x-msvideo", "video/x-m4v",
+    "video/x-ms-wmv", "video/x-flv", "video/3gpp",
+    "audio/mpeg", "audio/x-wav", "audio/wav", "audio/ogg", "audio/flac", "audio/mp4", "audio/x-m4a", "audio/aac",
+    "audio/opus", "audio/x-ms-wma",
+]
+
+
 def entry_paths() -> list[Path]:
     if sys.platform == "darwin":
         return [Path.home() / "Library" / "Services" / f"{MENU_TITLE}.workflow"]
@@ -40,11 +73,13 @@ def entry_paths() -> list[Path]:
         data / "nautilus" / "scripts" / MENU_TITLE,
         data / "kio" / "servicemenus" / "mandarine.desktop",
         data / "nemo" / "actions" / "mandarine.nemo_action",
+        _config_home() / "caja" / "scripts" / MENU_TITLE,
+        data / "file-manager" / "actions" / "mandarine.desktop",
     ]
 
 
 def is_installed() -> bool:
-    return any(p.exists() for p in entry_paths())
+    return any(p.exists() for p in entry_paths()) or (sys.platform != "darwin" and _thunar_has_action())
 
 
 # --- macOS Quick Action ------------------------------------------------------------
@@ -137,9 +172,9 @@ def nautilus_script(command: str) -> str:
 def dolphin_menu(command: str) -> str:
     return (
         "[Desktop Entry]\nType=Service\nX-KDE-ServiceTypes=KonqPopupMenu/Plugin\n"
-        "MimeType=application/pdf;image/png;image/jpeg;image/webp;image/bmp;image/tiff;image/gif;\n"
-        "Actions=astralShift;\nX-KDE-Priority=TopLevel\n\n"
-        f"[Desktop Action astralShift]\nName={MENU_TITLE}\nIcon=mandarine\nExec={command} %F\n"
+        f"MimeType={';'.join(MIME_TYPES)};\n"
+        "Actions=mandarine;\nX-KDE-Priority=TopLevel\n\n"
+        f"[Desktop Action mandarine]\nName={MENU_TITLE}\nIcon=mandarine\nExec={command} %F\n"
     )
 
 
@@ -147,8 +182,56 @@ def nemo_action(command: str) -> str:
     return (
         "[Nemo Action]\n"
         f"Name={MENU_TITLE}\nComment=Open the Mandarine wheel\nExec={command} %F\n"
-        "Icon-Name=mandarine\nSelection=notnone\nExtensions=pdf;png;jpg;jpeg;webp;bmp;tif;tiff;gif;\n"
+        f"Icon-Name=mandarine\nSelection=notnone\nExtensions={';'.join(EXTENSIONS)};\n"
     )
+
+
+def fma_action(command: str) -> str:
+    """FileManager-Actions entry, read by PCManFM and PCManFM-Qt."""
+    return (
+        "[Desktop Entry]\nType=Action\n"
+        f"Name={MENU_TITLE}\nIcon=mandarine\nProfiles=files;\n\n"
+        f"[X-Action-Profile files]\nMimeTypes={';'.join(MIME_TYPES)};\nExec={command} %F\n"
+    )
+
+
+def thunar_action(command: str) -> str:
+    patterns = ";".join(f"*.{e}" for e in EXTENSIONS)
+    return (
+        f"<action>\n\t<icon>mandarine</icon>\n\t<name>{MENU_TITLE}</name>\n"
+        f"\t<unique-id>{THUNAR_ID}</unique-id>\n\t<command>{escape(command)} %F</command>\n"
+        f"\t<description>Open the Mandarine wheel</description>\n\t<patterns>{patterns}</patterns>\n"
+        "\t<audio-files/>\n\t<image-files/>\n\t<other-files/>\n\t<text-files/>\n\t<video-files/>\n</action>\n"
+    )
+
+
+def _thunar_text() -> str:
+    path = thunar_file()
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def _thunar_has_action() -> bool:
+    return f"<unique-id>{THUNAR_ID}</unique-id>" in _thunar_text()
+
+
+def _thunar_without_action(text: str) -> str:
+    return re.sub(rf"<action>(?:(?!</action>).)*<unique-id>{THUNAR_ID}</unique-id>.*?</action>\n?", "", text,
+                  flags=re.S)
+
+
+def thunar_install(command: str) -> Path:
+    path = thunar_file()
+    text = _thunar_without_action(_thunar_text())
+    if "</actions>" not in text:
+        text = '<?xml version="1.0" encoding="UTF-8"?>\n<actions>\n</actions>\n'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text.replace("</actions>", thunar_action(command) + "</actions>", 1), encoding="utf-8")
+    return path
+
+
+def thunar_uninstall() -> None:
+    if _thunar_has_action():
+        thunar_file().write_text(_thunar_without_action(_thunar_text()), encoding="utf-8")
 
 
 # --- install / remove -----------------------------------------------------------------------
@@ -164,12 +247,12 @@ def install() -> list[Path]:
         (bundle / "document.wflow").write_bytes(plistlib.dumps(doc))
         refresh_services()
         return paths
-    writers = [nautilus_script, dolphin_menu, nemo_action]
+    writers = [nautilus_script, dolphin_menu, nemo_action, nautilus_script, fma_action]
     for path, write in zip(paths, writers):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(write(command))
-        path.chmod(0o755)  # Nautilus and Dolphin only run executable entries
-    return paths
+        path.chmod(0o755)  # Nautilus, Caja and Dolphin only run executable entries
+    return paths + [thunar_install(command)]
 
 
 def uninstall() -> None:
@@ -181,6 +264,8 @@ def uninstall() -> None:
             p.unlink()
     if sys.platform == "darwin":
         refresh_services()
+    else:
+        thunar_uninstall()
 
 
 def refresh_services() -> None:

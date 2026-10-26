@@ -1,5 +1,15 @@
 """The radial wheel: a translucent, focus-less window that pops up around the
-cursor and takes the dropped file(s)."""
+cursor and takes the dropped file(s).
+
+It has two rings, like Tangerine:
+
+* **formats**: one wedge per target format of the dragged file (PDF -> DOCX,
+  JPG, PNG, TXT…). The centre shows the file size and switches to tools when
+  you rest on it.
+* **tools**: compress, crop, background, redact… for PDFs and images; compress,
+  mute, rotate, 720p, loudness and clean for video; compress, loudness and
+  clean for audio. The centre annotates one file or merges several.
+"""
 from __future__ import annotations
 
 import math
@@ -8,12 +18,13 @@ from pathlib import Path
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
-    QColor, QDragEnterEvent, QGuiApplication, QDragMoveEvent, QDropEvent, QFont, QPainter, QPainterPath,
-    QPen, QRadialGradient,
+    QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent, QFont, QGuiApplication, QPainter, QPainterPath, QPen,
+    QRadialGradient,
 )
 from PySide6.QtWidgets import QWidget
 
-from .. import ops
+from .. import APP_NAME, ops
+from ..i18n import tr
 from . import icons
 from .glass import blur_behind
 
@@ -22,27 +33,51 @@ from .glass import blur_behind
 class Action:
     key: str
     label: str
+    icon: str = ""
+
+    @property
+    def target(self) -> str | None:
+        """``"docx"`` for a format wedge (key ``"to:docx"``), else None."""
+        return self.key[3:] if self.key.startswith("to:") else None
 
 
-# Clockwise from the top. The centre is ANNOTATE.
+def fmt(target: str) -> Action:
+    return Action(f"to:{target}", target.upper(), "")
+
+
+# Tools for PDFs and images, clockwise from the top.
 RING = [
-    Action("compress", "COMPRESS"),
-    Action("metadata", "METADATA"),
-    Action("edit", "EDIT"),
-    Action("convert", "CONVERT"),
-    Action("rotate", "ROTATE"),
-    Action("background", "ADD BG"),
-    Action("crop", "CROP"),
-    Action("redact", "REDACT"),
+    Action("compress", "COMPRESS", "compress"),
+    Action("metadata", "METADATA", "metadata"),
+    Action("edit", "EDIT", "edit"),
+    Action("rotate", "ROTATE", "rotate"),
+    Action("background", "ADD BG", "background"),
+    Action("crop", "CROP", "crop"),
+    Action("redact", "REDACT", "redact"),
 ]
-CENTER = Action("annotate", "ANNOTATE")
-MERGE = Action("merge", "MERGE")  # the centre when several files are dropped
-ALL = RING + [CENTER, MERGE]
+VIDEO_RING = [
+    Action("compress", "COMPRESS", "compress"),
+    Action("mute", "MUTE", "mute"),
+    Action("rotate", "ROTATE", "rotate"),
+    Action("resize", "720P", "resize"),
+    Action("normalize", "LOUDNESS", "volume"),
+    Action("metadata", "CLEAN", "metadata"),
+]
+AUDIO_RING = [
+    Action("compress", "COMPRESS", "compress"),
+    Action("normalize", "LOUDNESS", "volume"),
+    Action("metadata", "CLEAN", "metadata"),
+]
+CENTER = Action("annotate", "ANNOTATE", "annotate")
+MERGE = Action("merge", "MERGE", "merge")  # the centre when several files are dropped
+TOOLS = Action("tools", "TOOLS", "tools")  # centre of the formats ring
+FORMATS = Action("formats", "FORMATS", "formats")  # centre of a media tools ring
 
-SIZE = 360
-OUTER = 168
-INNER = 58
+SIZE = 380
+OUTER = 176
+INNER = 60
 GAP_DEG = 2.4
+SWITCH_MS = 450  # resting on a mode-switch centre this long flips the ring
 
 
 def local_files(event) -> list[Path]:
@@ -52,17 +87,58 @@ def local_files(event) -> list[Path]:
     return [Path(u.toLocalFile()) for u in md.urls() if u.isLocalFile() and ops.is_supported(Path(u.toLocalFile()))]
 
 
-def hit_test(p: QPointF, center: QPointF, many: bool = False) -> Action | None:
+def tool_ring(files: list[Path]) -> list[Action]:
+    kinds = {ops.kind(f) for f in files}
+    if kinds <= {"pdf", "image"}:
+        return list(RING)
+    if kinds == {"video"}:
+        return list(VIDEO_RING)
+    if kinds <= {"video", "audio"}:
+        return list(AUDIO_RING)
+    return []  # documents: formats only
+
+
+def format_ring(files: list[Path]) -> list[Action]:
+    return [fmt(t) for t in ops.common_targets(files)]
+
+
+def center_for(mode: str, files: list[Path]) -> Action | None:
+    if not files:
+        return None
+    if mode == "formats":
+        return TOOLS if tool_ring(files) else None
+    if {ops.kind(f) for f in files} <= {"pdf", "image"}:
+        return MERGE if len(files) > 1 else CENTER
+    return FORMATS
+
+
+def ring_for(mode: str, files: list[Path]) -> list[Action]:
+    if not files:
+        return []
+    return format_ring(files) if mode == "formats" else tool_ring(files)
+
+
+def hit_test(p: QPointF, center: QPointF, ring: list[Action], centre: Action | None) -> Action | None:
     """Which action sits under ``p`` (widget coordinates)."""
     dx, dy = p.x() - center.x(), p.y() - center.y()
     r = math.hypot(dx, dy)
     if r <= INNER:
-        return MERGE if many else CENTER
-    if r > OUTER + 6:
+        return centre
+    if r > OUTER + 6 or not ring:
         return None
-    # 0 deg = top, clockwise.
-    ang = (math.degrees(math.atan2(dx, -dy)) + 360 + 22.5) % 360
-    return RING[int(ang // 45)]
+    step = 360 / len(ring)
+    # 0 deg = top, clockwise; wedge 0 is centred on the top.
+    ang = (math.degrees(math.atan2(dx, -dy)) + 360 + step / 2) % 360
+    return ring[int(ang // step) % len(ring)]
+
+
+def human_size(n: float) -> str:
+    unit = "B"
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            break
+        n /= 1024
+    return f"{n:.0f} B" if unit == "B" else f"{n:.1f} {unit}"
 
 
 class Wheel(QWidget):
@@ -82,27 +158,77 @@ class Wheel(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setAcceptDrops(True)
         self.setFixedSize(SIZE, SIZE)
-        self.setWindowTitle("Mandarine")
+        self.setWindowTitle(APP_NAME)
         self.hover: Action | None = None
-        self.hint = ""  # e.g. "Page 001.jpg", shown on the hovered wedge
+        self.hint = ""  # e.g. "Page 001.jpg", shown under the wheel
+        self.first_mode = "formats"
+        self.mode = "formats"
         self._files: list[Path] = []
         self._preset = False
-        self.convert_target = {"pdf": "jpg", "image": "pdf"}
         self._opacity = 0.0
         self._fade = QTimer(self)
         self._fade.setInterval(12)
         self._fade.timeout.connect(self._step_fade)
+        self._switch = QTimer(self)
+        self._switch.setSingleShot(True)
+        self._switch.setInterval(SWITCH_MS)
+        self._switch.timeout.connect(self._switch_now)
         self._sticky = False  # opened from the tray: stay until Esc / click outside
+        self._hide_on_leave = False  # opened by the bubble: no global release signal to close us
+        self._drag_inside = False
         self.blurred = False
         self.setMouseTracking(True)
 
+    # --- state ------------------------------------------------------------------
+
+    @property
+    def files(self) -> list[Path]:
+        return list(self._files)
+
+    @property
+    def ring(self) -> list[Action]:
+        return ring_for(self.mode, self._files)
+
+    @property
+    def centre(self) -> Action | None:
+        return center_for(self.mode, self._files)
+
+    def set_files(self, files: list[Path]) -> None:
+        self._files = list(files)
+        # Documents have no tools ring: always show their formats.
+        if self.mode == "tools" and not tool_ring(self._files):
+            self.mode = "formats"
+        self.update()
+
+    def set_mode(self, mode: str) -> None:
+        if mode != self.mode:
+            self.mode = mode
+            self.hover = None
+            self.hint = ""
+            self.update()
+
+    def _switch_now(self) -> None:
+        if self.hover in (TOOLS, FORMATS):
+            self.set_mode("tools" if self.hover == TOOLS else "formats")
+
     # --- showing --------------------------------------------------------------
 
-    def popup(self, global_pos: QPoint, sticky: bool = False, files: list[Path] | None = None) -> None:
-        """Show at ``global_pos``. With ``files``, a click on a wedge acts on them."""
+    def popup(self, global_pos: QPoint, sticky: bool = False, files: list[Path] | None = None,
+              tools: bool = False, dragging: list[Path] | None = None) -> None:
+        """Show at ``global_pos``. With ``files``, a click on a wedge acts on them.
+
+        ``tools`` flips the first ring (Ctrl held when the drag started).
+        ``dragging`` are the files of a drag in progress (from the bubble): the
+        wheel shows their ring at once and closes if the drag leaves it.
+        """
         self._sticky = sticky or bool(files)
         self._preset = bool(files)
-        self._files = list(files or [])
+        self._hide_on_leave = dragging is not None
+        self._drag_inside = False
+        self.mode = self.first_mode
+        if tools:
+            self.mode = "formats" if self.first_mode == "tools" else "tools"
+        self.set_files(files or dragging or [])
         self.hover = None
         self.hint = ""
         target = QGuiApplication.screenAt(global_pos)  # multi-monitor: the screen under the cursor
@@ -132,6 +258,7 @@ class Wheel(QWidget):
             self._fade.stop()
 
     def dismiss(self) -> None:
+        self._switch.stop()
         if self.isVisible():
             self.hide()
             self.setWindowFlag(Qt.WindowType.WindowDoesNotAcceptFocus, True)
@@ -151,11 +278,8 @@ class Wheel(QWidget):
         extra = f" +{len(self._files) - 1}" if len(self._files) > 1 else ""
         if action.key == "merge":
             return f"{f.stem} Merged.pdf"
-        if action.key == "convert":
-            target = self.convert_target[ops.kind(f)]
-            if target not in ops.targets_for(f):
-                target = ops.default_target(f)
-            return f"{f.stem}.{target}{extra}"
+        if action.target:
+            return f"{f.stem}.{action.target}{extra}"
         return f.name + extra
 
     # --- drag and drop --------------------------------------------------------
@@ -163,18 +287,23 @@ class Wheel(QWidget):
     def dragEnterEvent(self, e: QDragEnterEvent) -> None:
         files = local_files(e)
         if files:
-            self._files = files
+            self._drag_inside = True
+            self.set_files(files)
             e.acceptProposedAction()
         else:
             e.ignore()
 
     def _hit(self, pos: QPointF) -> Action | None:
-        return hit_test(pos, QPointF(SIZE / 2, SIZE / 2), many=len(self._files) > 1)
+        return hit_test(pos, QPointF(SIZE / 2, SIZE / 2), self.ring, self.centre)
 
     def _set_hover(self, action: Action | None) -> None:
         if action != self.hover:
             self.hover = action
             self.hint = self._hint_for(action)
+            if action in (TOOLS, FORMATS):
+                self._switch.start()
+            else:
+                self._switch.stop()
             self.update()
 
     def dragMoveEvent(self, e: QDragMoveEvent) -> None:
@@ -186,13 +315,25 @@ class Wheel(QWidget):
             e.ignore()
 
     def dragLeaveEvent(self, e) -> None:
-        self.hover = None
-        self.hint = ""
-        self.update()
+        self._drag_inside = False
+        self._set_hover(None)
+        if self._hide_on_leave:
+            QTimer.singleShot(400, self._leave_check)
+
+    def _leave_check(self) -> None:
+        if not self._drag_inside and not self._sticky:
+            self.dismiss()
 
     def dropEvent(self, e: QDropEvent) -> None:
         files = local_files(e)
-        action = hit_test(e.position(), QPointF(SIZE / 2, SIZE / 2), many=len(files) > 1)
+        self.set_files(files)
+        action = self._hit(e.position())
+        if action in (TOOLS, FORMATS):
+            # Dropped on the switch before it flipped: keep the wheel for a click.
+            self._switch_now()
+            self._preset = self._sticky = True
+            e.acceptProposedAction()
+            return
         if action and files:
             e.acceptProposedAction()
             self.dropped.emit(action.key, files)
@@ -201,6 +342,8 @@ class Wheel(QWidget):
     def keyPressEvent(self, e) -> None:
         if e.key() == Qt.Key.Key_Escape:
             self.dismiss()
+        elif e.key() == Qt.Key.Key_Tab and tool_ring(self._files):
+            self.set_mode("tools" if self.mode == "formats" else "formats")
 
     def mouseMoveEvent(self, e) -> None:
         if self._preset:
@@ -209,7 +352,11 @@ class Wheel(QWidget):
     def mousePressEvent(self, e) -> None:
         action = self._hit(e.position())
         if action is None:
-            self.dismiss()
+            pos = e.position()
+            if math.hypot(pos.x() - SIZE / 2, pos.y() - SIZE / 2) > OUTER + 6:
+                self.dismiss()  # a click outside the disc closes; an empty spot on it does not
+        elif action in (TOOLS, FORMATS):
+            self.set_mode("tools" if action == TOOLS else "formats")
         elif self._preset:
             files = list(self._files)
             self.dismiss()
@@ -242,13 +389,30 @@ class Wheel(QWidget):
         label_font.setPixelSize(10)
         label_font.setBold(True)
         label_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.8)
+        format_font = QFont()
+        format_font.setPixelSize(17)
+        format_font.setBold(True)
+        format_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.6)
 
-        for i, action in enumerate(RING):
-            start = 90 - (i * 45 - 22.5) - GAP_DEG / 2  # Qt: 0 deg = 3 o'clock, counter-clockwise
-            span = -(45 - GAP_DEG)
+        ring = self.ring
+        inner_r = INNER + 6
+        if not ring:
+            # Files not known yet (the drag has not entered): an empty ring.
+            path = QPainterPath()
+            path.addEllipse(c, OUTER, OUTER)
+            path.addEllipse(c, inner_r, inner_r)
+            p.setPen(QPen(QColor(255, 255, 255, 200), 1))
+            p.setBrush(QColor(255, 214, 190, 160))
+            p.drawPath(path)
+            p.setFont(label_font)
+            p.setPen(QColor("#4a2c22"))
+            p.drawText(QRectF(c.x() - 80, c.y() - OUTER + 40, 160, 20), Qt.AlignmentFlag.AlignCenter, tr("Drop here"))
+        step = 360 / len(ring) if ring else 0
+        for i, action in enumerate(ring):
+            start = 90 - (i * step - step / 2) - GAP_DEG / 2  # Qt: 0 deg = 3 o'clock, counter-clockwise
+            span = -(step - GAP_DEG)
             path = QPainterPath()
             outer = QRectF(c.x() - OUTER, c.y() - OUTER, 2 * OUTER, 2 * OUTER)
-            inner_r = INNER + 6
             inner = QRectF(c.x() - inner_r, c.y() - inner_r, 2 * inner_r, 2 * inner_r)
             path.arcMoveTo(outer, start)
             path.arcTo(outer, start, span)
@@ -259,35 +423,51 @@ class Wheel(QWidget):
             p.setBrush(QColor(232, 68, 40, 235) if hovered else QColor(255, 214, 190, 215))
             p.drawPath(path)
 
-            mid = math.radians(i * 45)
+            mid = math.radians(i * step)
             r = (OUTER + inner_r) / 2
             pos = QPointF(c.x() + r * math.sin(mid), c.y() - r * math.cos(mid))
             color = "#ffffff" if hovered else "#4a2c22"
-            p.drawImage(QRectF(pos.x() - 11, pos.y() - 20, 22, 22), icons.image(action.key, 44, color, 1.9))
-            p.setFont(label_font)
             p.setPen(QColor(color))
-            p.drawText(QRectF(pos.x() - 45, pos.y() + 4, 90, 14), Qt.AlignmentFlag.AlignCenter, action.label)
+            if action.target:
+                p.setFont(format_font)
+                p.drawText(QRectF(pos.x() - 45, pos.y() - 12, 90, 24), Qt.AlignmentFlag.AlignCenter, action.label)
+            else:
+                p.drawImage(QRectF(pos.x() - 11, pos.y() - 20, 22, 22), icons.image(action.icon, 44, color, 1.9))
+                p.setFont(label_font)
+                p.drawText(QRectF(pos.x() - 50, pos.y() + 4, 100, 14), Qt.AlignmentFlag.AlignCenter, tr(action.label))
 
-        # Centre button: annotate one file, merge several.
-        centre = MERGE if len(self._files) > 1 else CENTER
-        hovered = self.hover == centre
+        # Centre: switch rings, annotate one file or merge several.
+        centre = self.centre
+        hovered = centre is not None and self.hover == centre
         p.setPen(QPen(QColor(255, 255, 255, 220), 1.2))
         p.setBrush(QColor(232, 68, 40, 240) if hovered else QColor(255, 236, 224, 235))
         p.drawEllipse(c, INNER, INNER)
         color = "#ffffff" if hovered else "#4a2c22"
-        p.drawImage(QRectF(c.x() - 11, c.y() - 22, 22, 22), icons.image(centre.key, 44, color, 1.9))
-        p.setFont(label_font)
-        p.setPen(QColor(color))
-        p.drawText(QRectF(c.x() - 50, c.y() + 2, 100, 14), Qt.AlignmentFlag.AlignCenter, centre.label)
+        if centre is not None:
+            p.drawImage(QRectF(c.x() - 11, c.y() - 26, 22, 22), icons.image(centre.icon, 44, color, 1.9))
+            small = QFont(label_font)
+            small.setPixelSize(9 if len(tr(centre.label)) > 9 else 10)
+            p.setFont(small)
+            p.setPen(QColor(color))
+            p.drawText(QRectF(c.x() - 56, c.y() - 2, 112, 14), Qt.AlignmentFlag.AlignCenter, tr(centre.label))
+        if self._files:
+            size = sum(f.stat().st_size for f in self._files if f.exists())
+            f = QFont()
+            f.setPixelSize(12 if centre is None else 10)
+            f.setBold(centre is None)
+            p.setFont(f)
+            p.setPen(QColor(color))
+            y = c.y() - 8 if centre is None else c.y() + 13
+            p.drawText(QRectF(c.x() - 50, y, 100, 16), Qt.AlignmentFlag.AlignCenter, human_size(size))
 
-        # File-name pill on the hovered wedge, like the result's name.
+        # File-name pill under the wheel, like the result's name.
         if self.hint:
             f = QFont()
             f.setPixelSize(12)
             f.setBold(True)
             p.setFont(f)
             w = min(SIZE - 20, p.fontMetrics().horizontalAdvance(self.hint) + 18)
-            rect = QRectF(c.x() - w / 2, SIZE - 30, w, 22)
+            rect = QRectF(c.x() - w / 2, SIZE - 26, w, 22)
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor(38, 99, 235, 235))
             p.drawRoundedRect(rect, 6, 6)

@@ -10,6 +10,9 @@ from .. import APP_ID
 
 
 def _launch_command() -> list[str]:
+    launcher = os.environ.get("MANDARINE_LAUNCHER")  # set by /usr/bin/mandarine in the .deb
+    if launcher:
+        return [launcher]
     if getattr(sys, "frozen", False):
         exe = Path(sys.executable)
         # Inside an .app bundle, open the bundle so macOS treats it as the app.
