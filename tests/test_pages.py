@@ -1,7 +1,7 @@
 import pymupdf
 import pytest
 
-from astral_shift import ops
+from mandarine import ops
 
 
 def test_merge_pdfs_and_images_in_order(pdf, one_page_pdf, png, tmp_path):

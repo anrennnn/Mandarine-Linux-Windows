@@ -4,10 +4,10 @@ import pytest
 from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRectF, Qt, QUrl
 from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QFocusEvent, QKeyEvent, QMouseEvent
 
-from astral_shift import ops
-from astral_shift.gui import icons
-from astral_shift.gui import wheel as Wh
-from astral_shift.gui.canvas import Document, PageCanvas
+from mandarine import ops
+from mandarine.gui import icons
+from mandarine.gui import wheel as Wh
+from mandarine.gui.canvas import Document, PageCanvas
 
 C = QPointF(Wh.SIZE / 2, Wh.SIZE / 2)
 
@@ -98,7 +98,7 @@ def test_rejects_non_files(qtbot, tmp_path):
     w = Wh.Wheel()
     qtbot.addWidget(w)
     assert not drag_enter(w, QMimeData()).isAccepted()
-    txt = tmp_path / "a.txt"
+    txt = tmp_path / "a.xyz"
     txt.write_text("x")
     assert not drag_enter(w, mime(txt)).isAccepted()
     got = []

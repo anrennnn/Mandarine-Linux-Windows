@@ -8,7 +8,7 @@ state the OS already exposes to every app.
 * X11: ``XQueryPointer`` (buttons + modifiers) and the owner of the
   ``XdndSelection``, which the drag source takes when a drag starts.
 * Wayland: nothing global is readable, so there is no backend; the wheel is
-  opened from the tray or with ``astral-shift wheel``.
+  opened from the tray or with ``mandarine wheel``.
 """
 from __future__ import annotations
 

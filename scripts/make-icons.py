@@ -44,5 +44,5 @@ tile.resize((512, 512), Image.LANCZOS).save(PK / "icon.png")
 for s in (16, 24, 32, 48, 64, 128, 256, 512):
     d = PK / "hicolor" / f"{s}x{s}" / "apps"
     d.mkdir(parents=True, exist_ok=True)
-    tile.resize((s, s), Image.LANCZOS).save(d / "astral-shift.png")
+    tile.resize((s, s), Image.LANCZOS).save(d / "mandarine.png")
 print("ok")

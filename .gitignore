@@ -10,3 +10,4 @@ dist/
 .claude/
 .DS_Store
 .worktrees/
+.venv/

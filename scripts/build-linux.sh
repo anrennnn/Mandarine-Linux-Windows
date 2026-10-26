@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build dist/AstralShift-Linux-x86_64.AppImage (run on ubuntu-22.04 for an old glibc baseline).
+# Build dist/Mandarine-Linux-x86_64.AppImage (run on ubuntu-22.04 for an old glibc baseline).
 # Needs: python with pyinstaller + deps, curl. Qt xcb runtime libs are needed to RUN, not to build.
 set -euo pipefail
 
@@ -8,29 +8,29 @@ cd "$ROOT"
 if [ -n "${PYTHON:-}" ]; then PY="$PYTHON"; elif [ -x "$ROOT/.venv/bin/python" ]; then PY="$ROOT/.venv/bin/python"; else PY=python3; fi
 
 ARCH=x86_64
-OUT="dist/AstralShift-Linux-$ARCH.AppImage"
+OUT="dist/Mandarine-Linux-$ARCH.AppImage"
 TOOLS="${APPIMAGE_TOOLS_DIR:-$ROOT/build/tools}"
 mkdir -p "$TOOLS"
 
 echo "== PyInstaller"
-rm -rf dist build/astral-shift build/AppDir
+rm -rf dist build/mandarine build/AppDir
 mkdir -p build
-"$PY" -m PyInstaller --noconfirm --distpath dist --workpath build/pyi packaging/astral-shift.spec
-[ -x dist/astral-shift/astral-shift ] || { echo "no binary produced" >&2; exit 1; }
+"$PY" -m PyInstaller --noconfirm --distpath dist --workpath build/pyi packaging/mandarine.spec
+[ -x dist/mandarine/mandarine ] || { echo "no binary produced" >&2; exit 1; }
 
 echo "== AppDir"
 AD=build/AppDir
 mkdir -p "$AD/usr/lib" "$AD/usr/share/applications" "$AD/usr/share/icons/hicolor/512x512/apps"
-cp -R dist/astral-shift "$AD/usr/lib/astral-shift"
+cp -R dist/mandarine "$AD/usr/lib/mandarine"
 cat > "$AD/AppRun" <<'RUN'
 #!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
-exec "$HERE/usr/lib/astral-shift/astral-shift" "$@"
+exec "$HERE/usr/lib/mandarine/mandarine" "$@"
 RUN
 chmod +x "$AD/AppRun"
-cp packaging/astral-shift.desktop "$AD/astral-shift.desktop"
-cp packaging/astral-shift.desktop "$AD/usr/share/applications/"
-cp packaging/icon.png "$AD/astral-shift.png"
+cp packaging/mandarine.desktop "$AD/mandarine.desktop"
+cp packaging/mandarine.desktop "$AD/usr/share/applications/"
+cp packaging/icon.png "$AD/mandarine.png"
 cp packaging/icon.png "$AD/.DirIcon"
 cp -R packaging/hicolor/. "$AD/usr/share/icons/hicolor/"
 

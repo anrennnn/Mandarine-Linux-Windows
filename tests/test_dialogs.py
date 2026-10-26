@@ -4,8 +4,8 @@ from PIL import Image
 from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtWidgets import QDialog
 
-from astral_shift import ops
-from astral_shift.gui import dialogs as D
+from mandarine import ops
+from mandarine.gui import dialogs as D
 
 
 def open_(qtbot, cls, path):

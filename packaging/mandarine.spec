@@ -1,13 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Build:  pyinstaller --noconfirm --distpath dist --workpath build packaging/astral-shift.spec
+# Build:  pyinstaller --noconfirm --distpath dist --workpath build packaging/mandarine.spec
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(SPECPATH).resolve().parent
-PKG = ROOT / "src" / "astral_shift"
+PKG = ROOT / "src" / "mandarine"
 VERSION = re.search(r'__version__\s*=\s*"([^"]+)"', (PKG / "__init__.py").read_text()).group(1)
-BUNDLE_ID = "com.astralpdf.astralshift"
+BUNDLE_ID = "io.github.anrennnn.Mandarine"
 
 # Optional signing identity, injected by scripts/build-macos.sh (empty = PyInstaller leaves it to us).
 IS_MAC = sys.platform == "darwin"
@@ -48,7 +48,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Astral Shift" if IS_MAC else "astral-shift",
+    name="Mandarine" if IS_MAC else "mandarine",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -59,24 +59,24 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Astral Shift" if IS_MAC else "astral-shift")
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Mandarine" if IS_MAC else "mandarine")
 
 if IS_MAC:
     app = BUNDLE(
         coll,
-        name="Astral Shift.app",
+        name="Mandarine.app",
         icon=str(ROOT / "packaging" / "icon.icns"),
         bundle_identifier=BUNDLE_ID,
         version=VERSION,
         info_plist={
-            "CFBundleName": "Astral Shift",
-            "CFBundleDisplayName": "Astral Shift",
+            "CFBundleName": "Mandarine",
+            "CFBundleDisplayName": "Mandarine",
             "CFBundleShortVersionString": VERSION,
             "CFBundleVersion": VERSION,
             "LSUIElement": True,
             "NSHighResolutionCapable": True,
             "LSMinimumSystemVersion": "12.0",
             "NSHumanReadableCopyright": "Copyright Taoufik Jabbari. AGPL-3.0-or-later.",
-            "NSAppleEventsUsageDescription": "Astral Shift reads the files selected in Finder when you press its shortcut.",
+            "NSAppleEventsUsageDescription": "Mandarine reads the files selected in Finder when you press its shortcut.",
         },
     )

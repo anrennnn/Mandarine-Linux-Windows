@@ -4,7 +4,7 @@ import pymupdf
 import pytest
 from PIL import Image
 
-from astral_shift import ops
+from mandarine import ops
 from conftest import SECRET
 
 
@@ -20,7 +20,7 @@ def test_output_path_never_overwrites(tmp_path):
 
 def test_kind_rejects_unknown(tmp_path):
     with pytest.raises(ops.UnsupportedFile):
-        ops.kind(tmp_path / "notes.txt")
+        ops.kind(tmp_path / "notes.xyz")
     assert ops.is_supported(tmp_path / "a.JPEG")
 
 

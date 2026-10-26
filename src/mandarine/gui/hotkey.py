@@ -3,7 +3,7 @@
 * macOS: Carbon ``RegisterEventHotKey`` through ctypes (the same API the
   Spotlight-style launchers use; it needs no Accessibility access).
 * X11: ``XGrabKey`` on the root window.
-* Wayland: not possible for an app; bind ``astral-shift wheel`` in the
+* Wayland: not possible for an app; bind ``mandarine wheel`` in the
   desktop's own keyboard settings instead.
 """
 from __future__ import annotations

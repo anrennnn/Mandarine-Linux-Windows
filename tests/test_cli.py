@@ -5,7 +5,7 @@ import pymupdf
 import pytest
 from PIL import Image
 
-from astral_shift import cli
+from mandarine import cli
 
 
 def run(*args):
@@ -55,18 +55,18 @@ def test_unknown_command_is_rejected():
 def test_version(capsys):
     with pytest.raises(SystemExit):
         run("--version")
-    assert "astral-shift 0.1.0" in capsys.readouterr().out
+    assert "mandarine 0.1.0" in capsys.readouterr().out
 
 
 def test_no_args_starts_gui(monkeypatch):
-    import astral_shift.gui.app as app
+    import mandarine.gui.app as app
     monkeypatch.setattr(app, "run_app", lambda files=None: 7)
     assert cli.main([]) == 7
     assert cli.main(["gui"]) == 7
 
 
 def test_wheel_command_passes_absolute_files(monkeypatch, jpg):
-    import astral_shift.gui.app as app
+    import mandarine.gui.app as app
     got = []
     monkeypatch.setattr(app, "run_app", lambda files=None: got.append(files) or 0)
     monkeypatch.chdir(jpg.parent)
@@ -86,11 +86,11 @@ def test_merge_and_split(pdf, png, tmp_path, capsys):
 
 
 def test_module_entry_points(monkeypatch, jpg):
-    monkeypatch.setattr(sys, "argv", ["astral-shift", "metadata", str(jpg)])
+    monkeypatch.setattr(sys, "argv", ["mandarine", "metadata", str(jpg)])
     with pytest.raises(SystemExit) as e:
-        runpy.run_module("astral_shift", run_name="__main__")
+        runpy.run_module("mandarine", run_name="__main__")
     assert e.value.code == 0
-    monkeypatch.setattr(sys, "argv", ["astral-shift", "metadata", str(jpg)])
+    monkeypatch.setattr(sys, "argv", ["mandarine", "metadata", str(jpg)])
     with pytest.raises(SystemExit) as e:
-        runpy.run_module("astral_shift.cli", run_name="__main__")
+        runpy.run_module("mandarine.cli", run_name="__main__")
     assert e.value.code == 0

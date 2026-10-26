@@ -3,8 +3,8 @@ import pymupdf
 import pytest
 from PIL import ExifTags, Image
 
-from astral_shift import ops
-from astral_shift.ops import markup
+from mandarine import ops
+from mandarine.ops import markup
 
 
 def test_convert_aliases_and_progress(png, jpg):
@@ -30,7 +30,7 @@ def test_first_page_image_of_an_image(png):
 
 
 def test_flatten_palette_with_transparency():
-    from astral_shift.ops.convert import flatten
+    from mandarine.ops.convert import flatten
     im = Image.new("P", (2, 2))
     im.info["transparency"] = 0
     assert flatten(im).mode == "RGB"
@@ -76,7 +76,7 @@ def test_edit_every_adjustment(jpg, pdf):
 
 
 def test_is_supported_false(tmp_path):
-    assert not ops.is_supported(tmp_path / "x.docx")
+    assert not ops.is_supported(tmp_path / "x.xyz")
 
 
 def test_redact_skips_pages_without_boxes(pdf):

@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "astral-shift"
+name = "mandarine"
 dynamic = ["version"]
 description = "Hold Shift while dragging a PDF or image: a radial wheel lets you convert, compress, crop, redact, annotate and more."
 readme = "README.md"
@@ -27,16 +27,16 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://astralpdf.com/desktop"
-Source = "https://github.com/jtaoufik/astral-shift"
+Source = "https://github.com/jtaoufik/mandarine"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-qt>=4.4", "pytest-cov>=5", "pyinstaller>=6.10"]
 
 [project.scripts]
-astral-shift = "astral_shift.cli:main"
+mandarine = "mandarine.cli:main"
 
 [tool.setuptools.dynamic]
-version = { attr = "astral_shift.__version__" }
+version = { attr = "mandarine.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -44,5 +44,5 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
-addopts = "--cov=astral_shift --cov-report=term-missing --cov-fail-under=100"
+addopts = "--cov=mandarine --cov-report=term-missing --cov-fail-under=100"
 filterwarnings = ["ignore::DeprecationWarning"]

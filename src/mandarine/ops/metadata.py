@@ -6,6 +6,7 @@ from pathlib import Path
 import pymupdf
 from PIL import ExifTags, Image
 
+from . import media
 from .files import PIL_FORMAT, kind, output_path
 
 
@@ -47,6 +48,8 @@ def read_metadata(path: Path) -> dict[str, str]:
 
 def strip_metadata(path: Path) -> Path:
     path = Path(path)
+    if kind(path) in ("video", "audio"):
+        return media.strip_metadata(path)
     dest = output_path(path, "Clean")
     if kind(path) == "pdf":
         with pymupdf.open(path) as doc:

@@ -28,4 +28,4 @@ jobs:
       - run: python -m pip install -e ".[dev]"
       - name: Tests (100% coverage enforced by pyproject)
         run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then ASTRAL_LIVE_X11=1 xvfb-run -a -s "-screen 0 1280x800x24" python -m pytest -rs; else python -m pytest; fi
+          if [ "$RUNNER_OS" = "Linux" ]; then MANDARINE_LIVE_X11=1 xvfb-run -a -s "-screen 0 1280x800x24" python -m pytest -rs; else python -m pytest; fi

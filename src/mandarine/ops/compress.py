@@ -7,6 +7,7 @@ import pymupdf
 from PIL import Image
 
 from .convert import flatten
+from . import media
 from .files import PIL_FORMAT, kind, output_path
 
 # level -> (pdf image dpi target, jpeg/webp quality)
@@ -17,8 +18,12 @@ LEVELS = {
 }
 
 
-def compress(path: Path, level: str = "medium") -> Path:
+def compress(path: Path, level: str = "medium", progress=None) -> Path:
     path = Path(path)
+    if kind(path) in ("video", "audio"):
+        return media.compress(path, level, progress)
+    if kind(path) not in ("pdf", "image"):
+        raise ValueError(f"Cannot compress {path.name}")
     dpi, quality = LEVELS[level]
     dest = output_path(path, "Compressed")
 

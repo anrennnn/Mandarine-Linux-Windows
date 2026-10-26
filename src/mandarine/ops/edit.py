@@ -11,6 +11,7 @@ from pathlib import Path
 import pymupdf
 from PIL import Image, ImageEnhance, ImageOps
 
+from . import media
 from .files import kind, output_path
 from .convert import save_image
 
@@ -55,6 +56,8 @@ def rotate(path: Path, degrees: int = 90) -> Path:
     path = Path(path)
     if degrees % 90:
         raise ValueError("Rotation must be a multiple of 90")
+    if kind(path) == "video":
+        return media.rotate(path, degrees)
     dest = output_path(path, "Rotated")
     if kind(path) == "pdf":
         with pymupdf.open(path) as doc:

@@ -1,4 +1,4 @@
-"""One running copy per user. A second launch, or ``astral-shift wheel``,
+"""One running copy per user. A second launch, or ``mandarine wheel``,
 talks to the first one over a local socket."""
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import getpass
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
-NAME = f"astral-shift-{getpass.getuser()}"
+NAME = f"mandarine-{getpass.getuser()}"
 
 
 def send_to_running(message: str, timeout_ms: int = 800) -> bool:

@@ -29,7 +29,7 @@ PATHS = {
     "text": '<path d="M4 7V4h16v3M9 20h6M12 4v16"/>',
     "flip_h": '<path d="M12 3v18M8 7 3 12l5 5V7ZM16 7l5 5-5 5V7Z"/>',
     "flip_v": '<path d="M3 12h18M7 8l5-5 5 5H7ZM7 16l5 5 5-5H7Z"/>',
-    "astral": '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>',
+    "logo": '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>',
 }
 
 

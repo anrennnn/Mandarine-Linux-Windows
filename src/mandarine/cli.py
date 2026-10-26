@@ -1,14 +1,14 @@
-"""Command line: ``astral-shift`` with no arguments starts the app.
+"""Command line: ``mandarine`` with no arguments starts the app.
 
-    astral-shift convert "Page 001.pdf" --to jpg
-    astral-shift compress scan.pdf --level high
-    astral-shift crop photo.jpg --rect 0.1 0.1 0.9 0.9
-    astral-shift rotate photo.jpg --degrees 90
-    astral-shift background shot.png --preset ocean --ratio 16:9
-    astral-shift metadata photo.jpg [--strip]
-    astral-shift merge a.pdf b.pdf photo.jpg [--out all.pdf]
-    astral-shift split report.pdf
-    astral-shift wheel [files...]   # show the wheel (bind to a shortcut on Wayland)
+    mandarine convert "Page 001.pdf" --to jpg
+    mandarine compress scan.pdf --level high
+    mandarine crop photo.jpg --rect 0.1 0.1 0.9 0.9
+    mandarine rotate photo.jpg --degrees 90
+    mandarine background shot.png --preset ocean --ratio 16:9
+    mandarine metadata photo.jpg [--strip]
+    mandarine merge a.pdf b.pdf photo.jpg [--out all.pdf]
+    mandarine split report.pdf
+    mandarine wheel [files...]   # show the wheel (bind to a shortcut on Wayland)
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def _rect(values: list[str]) -> tuple[float, float, float, float]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="astral-shift", description=f"{APP_NAME}: hold Shift while dragging a file.")
+    p = argparse.ArgumentParser(prog="mandarine", description=f"{APP_NAME}: hold Shift while dragging a file.")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = p.add_subparsers(dest="cmd")
 
@@ -83,7 +83,7 @@ def run(args: argparse.Namespace) -> int:
             print(ops.merge(args.files, args.out))
             return 0
         except Exception as e:
-            print(f"astral-shift: {e}", file=sys.stderr)
+            print(f"mandarine: {e}", file=sys.stderr)
             return 1
     status = 0
     for f in getattr(args, "files", []):
@@ -120,7 +120,7 @@ def run(args: argparse.Namespace) -> int:
             for o in outs:
                 print(o)
         except Exception as e:  # report and carry on with the next file
-            print(f"astral-shift: {f}: {e}", file=sys.stderr)
+            print(f"mandarine: {f}: {e}", file=sys.stderr)
             status = 1
     return status
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build, sign (Developer ID, hardened runtime), notarize and staple the macOS DMG.
-#   scripts/build-macos.sh            -> dist/AstralShift-macOS-<arch>.dmg
+#   scripts/build-macos.sh            -> dist/Mandarine-macOS-<arch>.dmg
 # Env overrides:
 #   SIGN_IDENTITY   default "Developer ID Application: Taoufik Jabbari (URB3N9DX5X)"
 #   NOTARY_KEY      path to the ASC .p8   (default ~/.appstoreconnect/private_keys/AuthKey_5M266KQ46M.p8)
@@ -21,15 +21,15 @@ ISSUER="${NOTARY_ISSUER:-0f329102-99f5-4d60-9da0-f2b86441abf8}"
 if [ -n "${PYTHON:-}" ]; then PY="$PYTHON"; elif [ -x "$ROOT/.venv/bin/python" ]; then PY="$ROOT/.venv/bin/python"; else PY=python3; fi
 
 case "$(uname -m)" in arm64) ARCH=arm64 ;; x86_64) ARCH=x86_64 ;; *) echo "unsupported arch" >&2; exit 1 ;; esac
-APP_NAME="Astral Shift"
+APP_NAME="Mandarine"
 APP="dist/$APP_NAME.app"
-DMG="dist/AstralShift-macOS-$ARCH.dmg"
+DMG="dist/Mandarine-macOS-$ARCH.dmg"
 
 log() { printf '\n== %s\n' "$*"; }
 
 log "PyInstaller ($ARCH)"
 rm -rf build dist
-"$PY" -m PyInstaller --noconfirm --distpath dist --workpath build packaging/astral-shift.spec
+"$PY" -m PyInstaller --noconfirm --distpath dist --workpath build packaging/mandarine.spec
 [ -d "$APP" ] || { echo "no $APP produced" >&2; exit 1; }
 # PyInstaller's onedir COLLECT folder next to the .app is not shipped.
 rm -rf "dist/$APP_NAME"

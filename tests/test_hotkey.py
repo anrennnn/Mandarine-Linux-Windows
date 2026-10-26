@@ -4,7 +4,7 @@ import types
 import pytest
 from PySide6.QtCore import Qt
 
-from astral_shift.gui import hotkey as H
+from mandarine.gui import hotkey as H
 
 M = Qt.KeyboardModifier
 

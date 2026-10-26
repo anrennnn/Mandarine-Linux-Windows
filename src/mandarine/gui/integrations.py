@@ -1,9 +1,9 @@
 """Right-click menu entries in the file manager.
 
-* macOS: a Finder Quick Action, "Astral Shift", in ~/Library/Services.
+* macOS: a Finder Quick Action, "Mandarine", in ~/Library/Services.
 * Linux: a Nautilus script, a Dolphin service menu and a Nemo action.
 
-Each entry runs ``astral-shift wheel <files>``, which opens the wheel with
+Each entry runs ``mandarine wheel <files>``, which opens the wheel with
 the selected files in the running app (or starts it).
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import autostart
 
-MENU_TITLE = "Astral Shift"
+MENU_TITLE = "Mandarine"
 
 
 def wheel_command() -> list[str]:
@@ -38,8 +38,8 @@ def entry_paths() -> list[Path]:
     data = _data_home()
     return [
         data / "nautilus" / "scripts" / MENU_TITLE,
-        data / "kio" / "servicemenus" / "astral-shift.desktop",
-        data / "nemo" / "actions" / "astral-shift.nemo_action",
+        data / "kio" / "servicemenus" / "mandarine.desktop",
+        data / "nemo" / "actions" / "mandarine.nemo_action",
     ]
 
 
@@ -139,15 +139,15 @@ def dolphin_menu(command: str) -> str:
         "[Desktop Entry]\nType=Service\nX-KDE-ServiceTypes=KonqPopupMenu/Plugin\n"
         "MimeType=application/pdf;image/png;image/jpeg;image/webp;image/bmp;image/tiff;image/gif;\n"
         "Actions=astralShift;\nX-KDE-Priority=TopLevel\n\n"
-        f"[Desktop Action astralShift]\nName={MENU_TITLE}\nIcon=astral-shift\nExec={command} %F\n"
+        f"[Desktop Action astralShift]\nName={MENU_TITLE}\nIcon=mandarine\nExec={command} %F\n"
     )
 
 
 def nemo_action(command: str) -> str:
     return (
         "[Nemo Action]\n"
-        f"Name={MENU_TITLE}\nComment=Open the Astral Shift wheel\nExec={command} %F\n"
-        "Icon-Name=astral-shift\nSelection=notnone\nExtensions=pdf;png;jpg;jpeg;webp;bmp;tif;tiff;gif;\n"
+        f"Name={MENU_TITLE}\nComment=Open the Mandarine wheel\nExec={command} %F\n"
+        "Icon-Name=mandarine\nSelection=notnone\nExtensions=pdf;png;jpg;jpeg;webp;bmp;tif;tiff;gif;\n"
     )
 
 

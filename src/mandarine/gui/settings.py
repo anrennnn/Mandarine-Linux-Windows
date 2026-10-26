@@ -14,7 +14,7 @@ from .. import __version__
 from . import hotkey
 from .glass import GlassDialog
 
-GITHUB = "https://github.com/jtaoufik/astral-shift"
+GITHUB = "https://github.com/jtaoufik/mandarine"
 
 TOOLS = [
     ("AstralPDF", "https://astralpdf.com", "Merge, split, compress, unlock and watermark PDFs"),
@@ -42,7 +42,7 @@ class SettingsDialog(GlassDialog):
     changed = Signal(str, object)  # settings key, new value
 
     def __init__(self, settings: QSettings, hotkey_status: str, wayland_hint: bool, parent: QWidget | None = None) -> None:
-        super().__init__("Astral Shift Settings", parent)
+        super().__init__("Mandarine Settings", parent)
         self.settings = settings
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)
@@ -66,7 +66,7 @@ class SettingsDialog(GlassDialog):
         grid.addWidget(self.shortcut_status, row, 0, 1, 3)
         row += 1
         if wayland_hint:
-            hint = QLabel("On Wayland, add a shortcut in your desktop's keyboard settings that runs: astral-shift wheel")
+            hint = QLabel("On Wayland, add a shortcut in your desktop's keyboard settings that runs: mandarine wheel")
             hint.setObjectName("Muted")
             hint.setWordWrap(True)
             hint.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -78,7 +78,7 @@ class SettingsDialog(GlassDialog):
         self.checks: dict[str, QCheckBox] = {}
         for key, label, default in [
             ("enabled", "Show the wheel when I hold Shift while dragging a file", True),
-            ("context_menu", "Add Astral Shift to the right-click menu", False),
+            ("context_menu", "Add Mandarine to the right-click menu", False),
             ("login", "Open at login", False),
             ("tips", "Show Astral tools tips every 2 months", True),
         ]:
@@ -109,7 +109,7 @@ class SettingsDialog(GlassDialog):
             row += 1
         self.layout_.addLayout(grid)
 
-        about = QLabel(f"Astral Shift {__version__} · free and open source (AGPL-3.0)")
+        about = QLabel(f"Mandarine {__version__} · free and open source (AGPL-3.0)")
         about.setObjectName("Muted")
         github = QPushButton("GitHub")
         github.clicked.connect(lambda: open_url(GITHUB))
@@ -143,7 +143,7 @@ class ToolsDialog(GlassDialog):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("More free Astral tools", parent)
-        intro = QLabel("Astral Shift is free. These sister tools are too, and they run in your browser.")
+        intro = QLabel("Mandarine is free. These sister tools are too, and they run in your browser.")
         intro.setObjectName("Muted")
         intro.setWordWrap(True)
         self.layout_.addWidget(intro)
@@ -164,7 +164,7 @@ class ToolsDialog(GlassDialog):
             go.clicked.connect(lambda _c=False, u=url: open_url(u))
             lay.addWidget(go)
             self.layout_.addWidget(card)
-        star = QPushButton("Star Astral Shift on GitHub")
+        star = QPushButton("Star Mandarine on GitHub")
         star.clicked.connect(lambda: open_url(GITHUB))
         close = QPushButton("Close")
         close.setObjectName("Primary")

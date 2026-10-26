@@ -8,7 +8,7 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QWidget
 
-from astral_shift.gui import glass, integrations, selection, settings as S
+from mandarine.gui import glass, integrations, selection, settings as S
 
 
 @pytest.fixture
@@ -23,10 +23,10 @@ def home(tmp_path, monkeypatch):
 
 def test_wheel_command(monkeypatch):
     monkeypatch.delattr(sys, "frozen", raising=False)
-    assert integrations.wheel_command()[-3:] == ["-m", "astral_shift", "wheel"]
+    assert integrations.wheel_command()[-3:] == ["-m", "mandarine", "wheel"]
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", "/Applications/Astral Shift.app/Contents/MacOS/Astral Shift")
-    assert integrations.wheel_command() == ["/Applications/Astral Shift.app/Contents/MacOS/Astral Shift", "wheel"]
+    monkeypatch.setattr(sys, "executable", "/Applications/Mandarine.app/Contents/MacOS/Mandarine")
+    assert integrations.wheel_command() == ["/Applications/Mandarine.app/Contents/MacOS/Mandarine", "wheel"]
 
 
 def test_finder_quick_action(home, monkeypatch):
@@ -34,9 +34,9 @@ def test_finder_quick_action(home, monkeypatch):
     monkeypatch.setattr(sys, "platform", "darwin")
     assert not integrations.is_installed()
     [bundle] = integrations.install()
-    assert bundle == tmp / "Library/Services/Astral Shift.workflow"
+    assert bundle == tmp / "Library/Services/Mandarine.workflow"
     info = plistlib.loads((bundle / "Contents/Info.plist").read_bytes())
-    assert info["NSServices"][0]["NSMenuItem"]["default"] == "Astral Shift"
+    assert info["NSServices"][0]["NSMenuItem"]["default"] == "Mandarine"
     doc = plistlib.loads((bundle / "Contents/document.wflow").read_bytes())
     command = doc["actions"][0]["action"]["ActionParameters"]["COMMAND_STRING"]
     assert command.endswith('wheel "$@" >/dev/null 2>&1 &')
@@ -72,7 +72,7 @@ def test_finder_selection(monkeypatch, jpg, tmp_path):
     monkeypatch.setattr(sys, "platform", "linux")
     assert selection.finder_selection() == []
     monkeypatch.setattr(sys, "platform", "darwin")
-    txt = tmp_path / "notes.txt"
+    txt = tmp_path / "notes.xyz"
     txt.write_text("x")
     out = f"{jpg}\n{txt}\n{tmp_path / 'gone.pdf'}\n\n"
     monkeypatch.setattr(selection.subprocess, "run",
@@ -205,7 +205,7 @@ def test_settings_dialog_bits(qtbot, tmp_path, monkeypatch):
     s = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
     d = S.SettingsDialog(s, "status", wayland_hint=True)
     qtbot.addWidget(d)
-    assert any("astral-shift wheel" in l.text() for l in d.findChildren(S.QLabel))
+    assert any("mandarine wheel" in l.text() for l in d.findChildren(S.QLabel))
     d._shortcut_default()
     assert s.value("hotkey") == S.hotkey.DEFAULT
     buttons = {b.text(): b for b in d.findChildren(S.QPushButton)}
@@ -213,7 +213,7 @@ def test_settings_dialog_bits(qtbot, tmp_path, monkeypatch):
     t = S.ToolsDialog()
     qtbot.addWidget(t)
     for b in t.findChildren(S.QPushButton):
-        if b.text() in ("Open", "Star Astral Shift on GitHub"):
+        if b.text() in ("Open", "Star Mandarine on GitHub"):
             b.click()
     assert opened == [S.GITHUB] + [u for _, u, _ in S.TOOLS] + [S.GITHUB]
 

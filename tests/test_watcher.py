@@ -4,7 +4,7 @@ import types
 import pytest
 from PySide6.QtCore import QPoint
 
-from astral_shift.gui import watcher as W
+from mandarine.gui import watcher as W
 
 
 class FakeBackend:

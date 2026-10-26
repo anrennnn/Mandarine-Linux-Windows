@@ -82,7 +82,7 @@ class Wheel(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setAcceptDrops(True)
         self.setFixedSize(SIZE, SIZE)
-        self.setWindowTitle("Astral Shift")
+        self.setWindowTitle("Mandarine")
         self.hover: Action | None = None
         self.hint = ""  # e.g. "Page 001.jpg", shown on the hovered wedge
         self._files: list[Path] = []

@@ -146,12 +146,12 @@ def tray_icon() -> QIcon:
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     if sys.platform == "darwin":
-        p.drawImage(pm.rect(), icons.image("astral", 64, "#000000", 2.2))
+        p.drawImage(pm.rect(), icons.image("logo", 64, "#000000", 2.2))
     else:
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor("#e8442a"))
         p.drawEllipse(2, 2, 60, 60)
-        p.drawImage(pm.rect().adjusted(10, 10, -10, -10), icons.image("astral", 44, "#ffffff", 2.2))
+        p.drawImage(pm.rect().adjusted(10, 10, -10, -10), icons.image("logo", 44, "#ffffff", 2.2))
     p.end()
     ic = QIcon(pm)
     if sys.platform == "darwin":
@@ -159,11 +159,11 @@ def tray_icon() -> QIcon:
     return ic
 
 
-class AstralShift(QObject):
+class Mandarine(QObject):
     def __init__(self, app: QApplication, settings: QSettings | None = None, backend="auto", hotkey_backend="auto") -> None:
         super().__init__()
         self.app = app
-        self.settings = settings if settings is not None else QSettings("AstralPDF", "Astral Shift")
+        self.settings = settings if settings is not None else QSettings("AstralPDF", "Mandarine")
         self.pool = QThreadPool.globalInstance()
         self.wheel = Wheel()
         self.wheel.dropped.connect(self.run_action)
@@ -263,14 +263,14 @@ class AstralShift(QObject):
             "Hold Shift while dragging a file" if self.watcher.available
             else "Shift+drag is unavailable here: use Show Wheel")
         status.setEnabled(False)
-        menu.addAction(icons.icon("astral"), "Show Wheel").triggered.connect(lambda: self.show_wheel(sticky=True))
+        menu.addAction(icons.icon("logo"), "Show Wheel").triggered.connect(lambda: self.show_wheel(sticky=True))
         menu.addAction(icons.icon("settings"), "Settings…").triggered.connect(self.open_settings)
         menu.addSeparator()
         tools = menu.addMenu(icons.icon("globe"), "Astral Tools")
         for name, url, _blurb in TOOLS:
             tools.addAction(name).triggered.connect(lambda _c=False, u=url: open_url(u))
         tools.addSeparator()
-        tools.addAction("Astral Shift on GitHub").triggered.connect(lambda: open_url(GITHUB))
+        tools.addAction("Mandarine on GitHub").triggered.connect(lambda: open_url(GITHUB))
         menu.addSeparator()
         menu.addAction("Quit").triggered.connect(lambda: self.app.quit())
         self.tray.setContextMenu(menu)
@@ -410,13 +410,13 @@ def run_app(files: list[Path] | None = None) -> int:
     app.setStyleSheet(QSS)
     app.setWindowIcon(tray_icon())
     if not QSystemTrayIcon.isSystemTrayAvailable():
-        print("astral-shift: no system tray found; the wheel still works with `astral-shift wheel`", file=sys.stderr)
-    core = AstralShift(app)
+        print("mandarine: no system tray found; the wheel still works with `mandarine wheel`", file=sys.stderr)
+    core = Mandarine(app)
     server = Server(app)
     server.message.connect(core.on_message)
     server.listen()
     if files:
         QTimer.singleShot(300, lambda: core.on_message(message))
-    elif os.environ.get("ASTRAL_SHIFT_SHOW_WHEEL"):
+    elif os.environ.get("MANDARINE_SHIFT_SHOW_WHEEL"):
         QTimer.singleShot(300, lambda: core.show_wheel(sticky=True))
     return app.exec()

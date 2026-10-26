@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-from astral_shift.gui import autostart, single
+from mandarine.gui import autostart, single
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def home(tmp_path, monkeypatch):
 def test_macos_launch_agent(home, monkeypatch):
     monkeypatch.setattr(sys, "platform", "darwin")
     path = autostart.entry_path()
-    assert path == home / "Library/LaunchAgents/com.astralpdf.astralshift.plist"
+    assert path == home / "Library/LaunchAgents/io.github.anrennnn.Mandarine.plist"
     assert not autostart.is_enabled()
     autostart.set_enabled(True)
     text = path.read_text()
@@ -31,18 +31,18 @@ def test_linux_desktop_entry(home, monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(home / "cfg"))
     autostart.set_enabled(True)
-    text = (home / "cfg/autostart/astral-shift.desktop").read_text()
-    assert text.startswith("[Desktop Entry]") and "-m astral_shift" in text
+    text = (home / "cfg/autostart/mandarine.desktop").read_text()
+    assert text.startswith("[Desktop Entry]") and "-m mandarine" in text
 
 
 def test_frozen_commands(home, monkeypatch):
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", "/Applications/Astral Shift.app/Contents/MacOS/Astral Shift")
-    assert autostart._launch_command() == ["/usr/bin/open", "-a", "/Applications/Astral Shift.app"]
-    monkeypatch.setattr(sys, "executable", "/tmp/.mount_x/usr/bin/astral-shift")
-    assert autostart._launch_command() == ["/tmp/.mount_x/usr/bin/astral-shift"]
-    monkeypatch.setenv("APPIMAGE", "/home/me/AstralShift.AppImage")
-    assert autostart._launch_command() == ["/home/me/AstralShift.AppImage"]
+    monkeypatch.setattr(sys, "executable", "/Applications/Mandarine.app/Contents/MacOS/Mandarine")
+    assert autostart._launch_command() == ["/usr/bin/open", "-a", "/Applications/Mandarine.app"]
+    monkeypatch.setattr(sys, "executable", "/tmp/.mount_x/usr/bin/mandarine")
+    assert autostart._launch_command() == ["/tmp/.mount_x/usr/bin/mandarine"]
+    monkeypatch.setenv("APPIMAGE", "/home/me/Mandarine.AppImage")
+    assert autostart._launch_command() == ["/home/me/Mandarine.AppImage"]
 
 
 def test_single_instance_roundtrip(qtbot, monkeypatch, tmp_path):

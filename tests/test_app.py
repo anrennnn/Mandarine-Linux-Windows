@@ -5,9 +5,9 @@ import pytest
 from PySide6.QtCore import QPoint, QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon
 
-from astral_shift.gui import app as A
-from astral_shift.gui import autostart, single
-from astral_shift.gui.watcher import State
+from mandarine.gui import app as A
+from mandarine.gui import autostart, single
+from mandarine.gui.watcher import State
 
 
 class FakeHotkey:
@@ -33,9 +33,9 @@ class Backend:
 
 @pytest.fixture
 def core(qapp, tmp_path, monkeypatch):
-    monkeypatch.setattr(autostart, "entry_path", lambda: tmp_path / "autostart" / "astral-shift.desktop")
+    monkeypatch.setattr(autostart, "entry_path", lambda: tmp_path / "autostart" / "mandarine.desktop")
     settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
-    c = A.AstralShift(qapp, settings=settings, backend=Backend(), hotkey_backend=FakeHotkey())
+    c = A.Mandarine(qapp, settings=settings, backend=Backend(), hotkey_backend=FakeHotkey())
     c.pool = type("Inline", (), {"start": staticmethod(lambda task: task.run())})()  # coverage can't see QThreads
     yield c
     c.watcher.stop()
@@ -119,7 +119,7 @@ def test_tray_menu(core, monkeypatch):
     monkeypatch.setattr(A, "open_url", opened.append)
     for name, url, _ in A.TOOLS:
         menu_action(core, name).trigger()
-    menu_action(core, "Astral Shift on GitHub").trigger()
+    menu_action(core, "Mandarine on GitHub").trigger()
     assert opened == [u for _, u, _ in A.TOOLS] + [A.GITHUB]
 
     shown = []
@@ -142,7 +142,7 @@ def test_messages_and_hotkey(core, monkeypatch, jpg, tmp_path):
     shown = []
     monkeypatch.setattr(core, "show_wheel", lambda sticky=False, files=None: shown.append((sticky, files)))
     core.on_message("wheel")
-    core.on_message(f"wheel\t{jpg}\t{tmp_path / 'notes.txt'}")
+    core.on_message(f"wheel\t{jpg}\t{tmp_path / 'notes.xyz'}")
     core.on_message("other")
     monkeypatch.setattr(A.selection, "finder_selection", lambda: [jpg])
     core.on_hotkey()
@@ -226,7 +226,7 @@ def test_is_wayland(monkeypatch):
 
 def test_unavailable_watcher_says_so(qapp, tmp_path):
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    c = A.AstralShift(qapp, settings=settings, backend=None, hotkey_backend=None)
+    c = A.Mandarine(qapp, settings=settings, backend=None, hotkey_backend=None)
     assert menu_action(c, "Shift+drag is unavailable here: use Show Wheel") is not None
     c.tray.hide()
 
@@ -339,15 +339,15 @@ def test_run_app(qapp, monkeypatch, tmp_path, capsys, jpg):
     monkeypatch.setattr(A.DragWatcher, "start", lambda self: None)
     monkeypatch.setattr(A, "Hotkey", lambda parent, backend="auto": _NoHotkey(parent))
     shown, messages = [], []
-    monkeypatch.setattr(A.AstralShift, "show_wheel", lambda self, sticky=False, files=None: shown.append(sticky))
-    monkeypatch.setattr(A.AstralShift, "on_message", lambda self, m: messages.append(m))
+    monkeypatch.setattr(A.Mandarine, "show_wheel", lambda self, sticky=False, files=None: shown.append(sticky))
+    monkeypatch.setattr(A.Mandarine, "on_message", lambda self, m: messages.append(m))
 
     def exec_briefly(self):
         QApplication.processEvents()
         qwait(400)
         return 0
     monkeypatch.setattr(QApplication, "exec", exec_briefly)
-    monkeypatch.setenv("ASTRAL_SHIFT_SHOW_WHEEL", "1")
+    monkeypatch.setenv("MANDARINE_SHIFT_SHOW_WHEEL", "1")
     assert A.run_app() == 0
     assert shown == [True]
     assert A.run_app([jpg]) == 0

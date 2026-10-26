@@ -59,8 +59,8 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
       - uses: actions/upload-artifact@v4
         with:
-          name: AstralShift-macOS-${{ matrix.arch }}
-          path: dist/AstralShift-macOS-${{ matrix.arch }}.dmg
+          name: Mandarine-macOS-${{ matrix.arch }}
+          path: dist/Mandarine-macOS-${{ matrix.arch }}.dmg
           if-no-files-found: error
 
   linux:
@@ -79,11 +79,11 @@ jobs:
       - run: python -m pip install -e ".[dev]"
       - run: PYTHON=python scripts/build-linux.sh
       - name: Smoke test the AppImage
-        run: xvfb-run -a env APPIMAGE_EXTRACT_AND_RUN=1 dist/AstralShift-Linux-x86_64.AppImage --version
+        run: xvfb-run -a env APPIMAGE_EXTRACT_AND_RUN=1 dist/Mandarine-Linux-x86_64.AppImage --version
       - uses: actions/upload-artifact@v4
         with:
-          name: AstralShift-Linux-x86_64
-          path: dist/AstralShift-Linux-x86_64.AppImage
+          name: Mandarine-Linux-x86_64
+          path: dist/Mandarine-Linux-x86_64.AppImage
           if-no-files-found: error
 
   publish:
@@ -100,7 +100,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            assets/AstralShift-macOS-arm64.dmg
-            assets/AstralShift-macOS-x86_64.dmg
-            assets/AstralShift-Linux-x86_64.AppImage
+            assets/Mandarine-macOS-arm64.dmg
+            assets/Mandarine-macOS-x86_64.dmg
+            assets/Mandarine-Linux-x86_64.AppImage
           generate_release_notes: true

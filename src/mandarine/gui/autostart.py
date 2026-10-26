@@ -18,14 +18,14 @@ def _launch_command() -> list[str]:
                 return ["/usr/bin/open", "-a", str(parent)]
         appimage = os.environ.get("APPIMAGE")
         return [appimage] if appimage else [str(exe)]
-    return [sys.executable, "-m", "astral_shift"]
+    return [sys.executable, "-m", "mandarine"]
 
 
 def entry_path() -> Path:
     if sys.platform == "darwin":
         return Path.home() / "Library" / "LaunchAgents" / f"{APP_ID}.plist"
     config = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
-    return config / "autostart" / "astral-shift.desktop"
+    return config / "autostart" / "mandarine.desktop"
 
 
 def is_enabled() -> bool:
@@ -51,8 +51,8 @@ def render() -> str:
 </plist>
 """
     return (
-        "[Desktop Entry]\nType=Application\nName=Astral Shift\n"
-        f"Exec={shlex.join(cmd)}\nIcon=astral-shift\nX-GNOME-Autostart-enabled=true\nNoDisplay=true\n"
+        "[Desktop Entry]\nType=Application\nName=Mandarine\n"
+        f"Exec={shlex.join(cmd)}\nIcon=mandarine\nX-GNOME-Autostart-enabled=true\nNoDisplay=true\n"
     )
 
 
