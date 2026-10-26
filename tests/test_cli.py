@@ -1,5 +1,6 @@
 import runpy
 import sys
+from pathlib import Path
 
 import pymupdf
 import pytest
@@ -15,7 +16,7 @@ def run(*args):
 def test_convert_and_print(pdf, capsys):
     assert run("convert", pdf, "--to", "png", "--dpi", 50) == 0
     out = capsys.readouterr().out.splitlines()
-    assert [l.rsplit("/", 1)[-1] for l in out] == ["Page 001 p1.png", "Page 001 p2.png"]
+    assert [Path(l).name for l in out] == ["Page 001 p1.png", "Page 001 p2.png"]
 
 
 def test_every_command(jpg, pdf, capsys):
@@ -25,7 +26,7 @@ def test_every_command(jpg, pdf, capsys):
     assert run("background", jpg, "--preset", "ocean", "--ratio", "16:9") == 0
     assert run("redact", pdf, "--rect", 0, 0, 1, 0.2, "--page", 2) == 0
     assert run("metadata", jpg, "--strip") == 0
-    names = [l.rsplit("/", 1)[-1] for l in capsys.readouterr().out.splitlines()]
+    names = [Path(l).name for l in capsys.readouterr().out.splitlines()]
     assert names == ["Photo Compressed.jpg", "Photo Cropped.jpg", "Photo Rotated.jpg",
                      "Photo with Background.png", "Page 001 Redacted.pdf", "Photo Clean.jpg"]
 
@@ -79,7 +80,7 @@ def test_merge_and_split(pdf, png, tmp_path, capsys):
     assert run("merge", pdf, png) == 0
     assert run("merge", pdf, png, "--out", tmp_path / "all.pdf") == 0
     assert run("split", pdf) == 0
-    names = [l.rsplit("/", 1)[-1] for l in capsys.readouterr().out.splitlines()]
+    names = [Path(l).name for l in capsys.readouterr().out.splitlines()]
     assert names == ["Page 001 Merged.pdf", "all.pdf", "Page 001 p1.pdf", "Page 001 p2.pdf"]
     assert run("merge", pdf) == 1
     assert "at least two" in capsys.readouterr().err

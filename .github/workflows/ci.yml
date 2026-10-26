@@ -81,20 +81,22 @@ jobs:
         timeout-minutes: 20
         run: |
           set +e
-          python -m pytest -p no:cacheprovider --cov-fail-under=0 -q -rs \
+          python -m pytest -p no:cacheprovider --cov-fail-under=0 -q -rfEs \
             tests/test_ops.py tests/test_ops_edges.py tests/test_pages.py tests/test_media_office.py \
             tests/test_cli.py tests/test_windows.py tests/test_wheel_canvas.py tests/test_dialogs.py \
             tests/test_desktop.py > pytest.log 2>&1
           status=$?
           tail -n 40 pytest.log
           if [ $status -ne 0 ]; then
-            grep -E "^(FAILED|ERROR)" pytest.log | head -n 15 | while IFS= read -r line; do echo "::error title=pytest::$line"; done
-            grep -E "^E  " pytest.log | head -n 25 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' | sed 's/^/::error title=pytest details::/'
+            grep -E "^(FAILED|ERROR)" pytest.log | head -n 40 | cut -c1-300 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' | sed 's/^/::error title=pytest failures::/'
+            grep -E "^E  |^tests.*Error|^[a-zA-Z_\\/.:]+:[0-9]+: " pytest.log | head -n 60 | cut -c1-240 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' | sed 's/^/::error title=pytest details::/'
           fi
           exit $status
       - name: Build Mandarine.exe and mandarine-cli.exe
+        if: ${{ !cancelled() }}
         run: pyinstaller --noconfirm --log-level WARN --distpath dist --workpath build/pyi packaging/mandarine.spec
       - name: Smoke test the build
+        if: ${{ !cancelled() }}
         timeout-minutes: 5
         run: |
           set -e
@@ -112,6 +114,7 @@ jobs:
           tasklist //FI "IMAGENAME eq Mandarine.exe" | grep -q Mandarine.exe || { echo "::error title=smoke::Mandarine.exe exited"; exit 1; }
           taskkill //F //IM Mandarine.exe
       - name: Installer (Inno Setup) and portable zip
+        if: ${{ !cancelled() }}
         shell: pwsh
         run: |
           $version = (Select-String -Path src/mandarine/__init__.py -Pattern '__version__ = "(.*)"').Matches[0].Groups[1].Value
@@ -122,6 +125,7 @@ jobs:
           Compress-Archive -Path dist\Mandarine -DestinationPath "dist\Mandarine-$version-windows-portable.zip"
           Get-ChildItem dist -File | Format-Table Name, Length
       - name: Install silently and check the right-click entry
+        if: ${{ !cancelled() }}
         shell: pwsh
         timeout-minutes: 10
         run: |
